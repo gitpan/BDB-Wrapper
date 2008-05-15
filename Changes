@@ -1,0 +1,6 @@
+Revision history for Perl extension BDB::Wrapper.
+
+0.01  Wed Apr 16 07:17:14 2008
+	- original version; created by h2xs 1.23 with options
+		-A -X -b 5.6.0 -n BDB::Wrapper
+
