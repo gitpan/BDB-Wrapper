@@ -12,15 +12,15 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 =head1 NAME
 
-BDB::Wrapper Wrapper module for BerkeleyDB
+BDB::Wrapper Wrapper module for BerkeleyDB.pm
 
-This will make it easy to use BerkeleyDB.
+This will make it easy to use BerkeleyDB.pm.
 
-You can protect bdb file from the concurrent access.
+You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
 
 =cut
 
