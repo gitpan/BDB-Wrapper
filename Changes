@@ -1,5 +1,9 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.10  Mon Jun 09 18:40:00 2008
+	- sort_code_ref, reverse and reverse_cmp is now available for btree.
+	- minor bug was fixed.
+
 0.01  Wed Apr 16 07:17:14 2008
 	- original version; created by h2xs 1.23 with options
 		-A -X -b 5.6.0 -n BDB::Wrapper
