@@ -1,5 +1,9 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.11  Tue Jun 17 23:00:00 2008
+	- sort, sort_num and reverse_num is now available for btree.
+	- Document was modified.
+
 0.10  Mon Jun 09 18:40:00 2008
 	- sort_code_ref, reverse and reverse_cmp is now available for btree.
 	- minor bug was fixed.

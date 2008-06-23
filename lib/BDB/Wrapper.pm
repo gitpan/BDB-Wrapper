@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 =head1 NAME
 
@@ -99,7 +99,7 @@ sub create_hash_ref(){
 
 This will creates database handler for writing.
 
-$self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'reverse_cmp'=>0 or 1, 'reverse'=>0 or 1});
+$self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse_num'=>0 or 1, 'reverse'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -109,9 +109,11 @@ If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the 
 
 If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set reverse 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
+If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse_cmp 1, you can use sub {$_[0] cmp $_[1]} for sort_code_ref.
+If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+
+If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 =cut
 
@@ -126,11 +128,14 @@ sub create_write_dbh(){
   if(ref($op) eq 'HASH'){
     $hash=$op->{'hash'} || 0;
     $dont_try=$op->{'dont_try'} || 0;
-    if($op->{'reverse'}){
+    if($op->{'reverse'} || $op->{'reverse_num'}){
       $sort_code_ref=sub {$_[1] <=> $_[0]};
     }
     elsif($op->{'reverse_cmp'}){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
+    }
+    elsif($op->{'sort'} || $op->{'sort_num'}){
+      $sort_code_ref=sub {$_[0] cmp $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -207,9 +212,11 @@ If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the 
 
 If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set reverse 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
+If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse_cmp 1, you can use sub {$_[0] cmp $_[1]} for sort_code_ref.
+If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+
+If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 =cut
 
@@ -223,11 +230,14 @@ sub create_read_dbh(){
   if(ref($op) eq 'HASH'){
     $hash=$op->{'hash'} || 0;
     $dont_try=$op->{'dont_try'} || 0;
-    if($op->{'reverse'}){
+    if($op->{'reverse'} || $op->{'reverse_num'}){
       $sort_code_ref=sub {$_[1] <=> $_[0]};
     }
     elsif($op->{'reverse_cmp'}){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
+    }
+    elsif($op->{'sort'} || $op->{'sort_num'}){
+      $sort_code_ref=sub {$_[0] cmp $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -270,10 +280,11 @@ If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the 
 
 If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set reverse 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
+If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse_cmp 1, you can use sub {$_[0] cmp $_[1]} for sort_code_ref.
+If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
+If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 =cut
 
 sub create_write_hash_ref(){
@@ -286,11 +297,14 @@ sub create_write_hash_ref(){
   if(ref($op) eq 'HASH'){
     $hash=$op->{'hash'} || 0;
     $dont_try=$op->{'dont_try'} || 0;
-    if($op->{'reverse'}){
+    if($op->{'reverse'} || $op->{'reverse_num'}){
       $sort_code_ref=sub {$_[1] <=> $_[0]};
     }
     elsif($op->{'reverse_cmp'}){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
+    }
+    elsif($op->{'sort'} || $op->{'sort_num'}){
+      $sort_code_ref=sub {$_[0] cmp $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -370,10 +384,11 @@ If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the 
 
 If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set reverse 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
+If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse_cmp 1, you can use sub {$_[0] cmp $_[1]} for sort_code_ref.
+If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
+If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 =cut
 
@@ -387,11 +402,14 @@ sub create_read_hash_ref(){
   if(ref($op) eq 'HASH'){
     $hash=$op->{'hash'} || 0;
     $dont_try=$op->{'dont_try'} || 0;
-    if($op->{'reverse'}){
+    if($op->{'reverse'} || $op->{'reverse_num'}){
       $sort_code_ref=sub {$_[1] <=> $_[0]};
     }
     elsif($op->{'reverse_cmp'}){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
+    }
+    elsif($op->{'sort'} || $op->{'sort_num'}){
+      $sort_code_ref=sub {$_[0] cmp $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
