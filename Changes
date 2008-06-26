@@ -1,5 +1,10 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.12  Tue Jun 24 16:00:00 2008
+	- create_read_dbh, create_read_hash_ref now have the unlock function for deadlock
+	- Potential bug was fixed.
+	- Document was modified.
+
 0.11  Tue Jun 17 23:00:00 2008
 	- sort, sort_num and reverse_num is now available for btree.
 	- Document was modified.

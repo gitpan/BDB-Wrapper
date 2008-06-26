@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 =head1 NAME
 
@@ -21,6 +21,12 @@ BDB::Wrapper Wrapper module for BerkeleyDB.pm
 This will make it easy to use BerkeleyDB.pm.
 
 You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
+
+Attention: If you use this module for the specified Berkeley DB file,
+please use this module for all access to the bdb.
+By it, you can control lock to the bdb file.
+Lock files are created under /tmp/bdb_home.
+If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
 
 =cut
 
@@ -99,7 +105,7 @@ sub create_hash_ref(){
 
 This will creates database handler for writing.
 
-$self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse_num'=>0 or 1, 'reverse'=>0 or 1});
+$self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -111,7 +117,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
@@ -172,6 +178,8 @@ sub create_write_dbh(){
   unless($dont_try){
     if($@){
       if($@ =~ /timeout/){
+        $op->{'dont_try'}=1;
+        $dont_try=1;
         my $home_dir=$bdb;
         if($home_dir=~ s![^/]+$!!){
           my $i=1;
@@ -202,7 +210,7 @@ sub create_write_dbh(){
 
 This will creates database handler for reading.
 
-$self->create_read_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'reverse_cmp'=>0 or 1, 'reverse'=>0 or 1});
+$self->create_read_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -214,10 +222,9 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
-
 =cut
 
 sub create_read_dbh(){
@@ -248,19 +255,53 @@ sub create_read_dbh(){
     $dont_try=shift || 0;
     $sort_code_ref=shift;
   }
+  
   my $dbh;
-  if($hash){
-    $dbh =new BerkeleyDB::Hash {
-      -Filename => $bdb,
-      -Flags    => DB_RDONLY
-      };
-  }
-  else{
-    $dbh =new BerkeleyDB::Btree {
-      -Filename => $bdb,
-      -Flags    => DB_RDONLY,
-      -Compare => $sort_code_ref
-      };
+  $SIG{ALRM} = sub { die "timeout"};
+  eval{
+    alarm($self->{'wait'});
+    if($hash){
+      $dbh =new BerkeleyDB::Hash {
+        -Filename => $bdb,
+        -Flags    => DB_RDONLY
+        };
+    }
+    else{
+      $dbh =new BerkeleyDB::Btree {
+        -Filename => $bdb,
+        -Flags    => DB_RDONLY,
+        -Compare => $sort_code_ref
+        };
+    }
+    alarm(0);
+  };
+
+  unless($dont_try){
+    if($@){
+      if($@ =~ /timeout/){
+        $op->{'dont_try'}=1;
+        $dont_try=1;
+        my $home_dir=$bdb;
+        if($home_dir=~ s![^/]+$!!){
+          my $i=1;
+          my $lock=$home_dir.'__db.00'.$i;
+          while(-f $lock){
+            unlink $lock;
+            $i++;
+            $lock=$home_dir.'__db.00'.$i;
+          }
+          if(ref($op) eq 'HASH'){
+            return $self->create_read_dbh($bdb, $op);
+          }
+          else{
+            return $self->create_read_dbh($bdb, $hash, $dont_try, $sort_code_ref);
+          }
+        }
+      }
+      else{
+        alarm(0);
+      }
+    }
   }
   return $dbh;
 }
@@ -270,7 +311,7 @@ sub create_read_dbh(){
 
 This will creates hash for writing.
 
-$self->create_write_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'reverse_cmp'=>0 or 1, 'reverse'=>0 or 1});
+$self->create_write_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference,  'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -282,7 +323,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 =cut
@@ -319,9 +360,8 @@ sub create_write_hash_ref(){
   if($hash){
     $type='BerkeleyDB::Hash';
   }
-  my %hash;
-  
   local $SIG{ALRM} = sub { die "timeout"};
+  my %hash;
   eval{
     alarm($self->{'wait'});
     if($sort_code_ref && !$hash){
@@ -345,6 +385,8 @@ sub create_write_hash_ref(){
   unless($dont_try){
     if($@){
       if($@ =~ /timeout/){
+        $op->{'dont_try'}=1;
+        $dont_try=1;
         my $home_dir=$bdb;
         if($home_dir=~ s![^/]+$!!){
           my $i=1;
@@ -374,7 +416,7 @@ sub create_write_hash_ref(){
 
 This will creates database handler for reading.
 
-$self->create_read_hash_ref($bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'reverse_cmp'=>0 or 1, 'reverse'=>0 or 1});
+$self->create_read_hash_ref($bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -386,7 +428,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
@@ -425,20 +467,53 @@ sub create_read_hash_ref(){
   if($hash){
     $type='BerkeleyDB::Hash';
   }
+
   my %hash;
-  if($sort_code_ref && !$hash){
-    tie %hash, $type,
-    -Filename => $bdb,
-    -Flags    => DB_RDONLY,
-    -Compare => $sort_code_ref;
-    return \%hash;
+  local $SIG{ALRM} = sub { die "timeout"};
+  eval{
+    alarm($self->{'wait'});
+    if($sort_code_ref && !$hash){
+      tie %hash, $type,
+      -Filename => $bdb,
+      -Flags    => DB_RDONLY,
+      -Compare => $sort_code_ref;
+    }
+    else{
+      tie %hash, $type,
+      -Filename => $bdb,
+      -Flags    => DB_RDONLY;
+    }
+    alarm(0);
+  };
+  
+  unless($dont_try){
+    if($@){
+      if($@ =~ /timeout/){
+        $op->{'dont_try'}=1;
+        $dont_try=1;
+        my $home_dir=$bdb;
+        if($home_dir=~ s![^/]+$!!){
+          my $i=1;
+          my $lock=$home_dir.'__db.00'.$i;
+          while(-f $lock){
+            unlink $lock;
+            $i++;
+            $lock=$home_dir.'__db.00'.$i;
+          }
+          if(ref($op) eq 'HASH'){
+            return $self->create_read_hash_ref($bdb, $op);
+          }
+          else{
+            return $self->create_read_hash_ref($bdb, $hash, $dont_try, $sort_code_ref);
+          }
+        }
+      }
+      else{
+        alarm(0);
+      }
+    }
   }
-  else{
-    tie %hash, $type,
-    -Filename => $bdb,
-    -Flags    => DB_RDONLY;
-    return \%hash;
-  }
+  return \%hash;
 }
 
 # Code from CGI::Accessup;

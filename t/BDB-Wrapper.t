@@ -44,7 +44,6 @@ ok($test_value==4);
 my $key=0;
 my $value;
 my @values=();
-print "Cursor test\n";
 if(my $cursor=$bdbh->db_cursor()){
   while($cursor->c_get($key, $value, DB_NEXT)==0){
 	push(@values, $key);
