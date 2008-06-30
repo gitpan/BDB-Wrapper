@@ -1,7 +1,11 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.13  Mon Jun 30 20:00:00 2008
+	- new method now supports 'wait' option for specifing the time in which dead lock will be removed.
+	- Document was modified.
+
 0.12  Tue Jun 24 16:00:00 2008
-	- create_read_dbh, create_read_hash_ref now have the unlock function for deadlock
+	- create_read_dbh, create_read_hash_ref now have the unlock function for dead lock
 	- Potential bug was fixed.
 	- Document was modified.
 
@@ -16,4 +20,3 @@ Revision history for Perl extension BDB::Wrapper.
 0.01  Wed Apr 16 07:17:14 2008
 	- original version; created by h2xs 1.23 with options
 		-A -X -b 5.6.0 -n BDB::Wrapper
-
