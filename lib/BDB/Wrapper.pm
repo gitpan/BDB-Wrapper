@@ -12,9 +12,10 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 =head1 NAME
+
 BDB::Wrapper Wrapper module for BerkeleyDB.pm
 This will make it easy to use BerkeleyDB.pm.
 You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
@@ -25,9 +26,11 @@ please use this module for all access to the bdb.
 By it, you can control lock to the bdb file.
 Lock files are created under /tmp/bdb_home.
 If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
+
 =cut
 
 =head1 Example
+
 package test_bdb;
 use BDB::Wrapper;
 
@@ -78,14 +81,17 @@ sub demo(){
     $dbh->db_close();
   }
 }
+
 =cut
 
 =head1 methods
 
 =head2 new
+
 Creates an object of BDB::Wrapper
 If you set {'ram'=>1}, you can use /dev/shm for storing locking file for BDB.
 If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
+
 =cut
 
 sub new(){
@@ -104,7 +110,9 @@ sub new(){
 __END__
 
 =head2 create_env
+
 Creates Environment for BerkeleyDB
+
 =cut
 
 sub create_env(){
@@ -138,8 +146,10 @@ sub create_env(){
 
 
 =head2 create_dbh
+
 Creates database handler for BerkeleyDB
 This will be obsolete due to too much simplicity, so please don\'t use.
+
 =cut
 
 sub create_dbh(){
@@ -150,8 +160,10 @@ sub create_dbh(){
 }
 
 =head2 create_hash_ref
+
 Creates database handler for BerkeleyDB
 This will be obsolete due to too much simplicity, so please don\'t use.
+
 =cut
 
 sub create_hash_ref(){
@@ -162,6 +174,7 @@ sub create_hash_ref(){
 }
 
 =head2 create_write_dbh
+
 This will creates database handler for writing.
 $self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 In the default mode, BDB file will be created as Btree;
@@ -171,6 +184,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+
 =cut
 
 sub create_write_dbh(){
@@ -257,6 +271,7 @@ sub create_write_dbh(){
 
 
 =head2 create_read_dbh
+
 This will creates database handler for reading.
 $self->create_read_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 In the default mode, BDB file will be created as Btree;
@@ -266,6 +281,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+
 =cut
 
 sub create_read_dbh(){
@@ -349,6 +365,7 @@ sub create_read_dbh(){
 
 
 =head2 create_write_hash_ref
+
 This will creates hash for writing.
 $self->create_write_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference,  'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 In the default mode, BDB file will be created as Btree;
@@ -358,6 +375,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+
 =cut
 
 sub create_write_hash_ref(){
@@ -445,6 +463,7 @@ sub create_write_hash_ref(){
 }
 
 =head2 create_read_hash_ref
+
 This will creates database handler for reading.
 $self->create_read_hash_ref($bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 In the default mode, BDB file will be created as Btree;
@@ -454,6 +473,7 @@ If you set sort_code_ref some code reference, you can set subroutine for sorting
 If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+
 =cut
 
 sub create_read_hash_ref(){

@@ -1,5 +1,8 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.14  Mon Jul 01 03:00:00 2008
+	- Document was modified.
+
 0.13  Mon Jun 30 20:00:00 2008
 	- new method now supports 'wait' option for specifing the time in which dead lock will be removed.
 	- Document was modified.
