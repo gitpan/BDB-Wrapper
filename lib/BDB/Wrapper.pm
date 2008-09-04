@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 
 =head1 NAME
 
@@ -99,7 +99,9 @@ sub demo(){
 
 Creates an object of BDB::Wrapper
 
-If you set {'ram'=>1}, you can use /dev/shm for storing locking file for BDB.
+If you set {'ram'=>1}, you can use /dev/shm/bdb_home for storing locking file for BDB instead of /tmp/bdb_home/.
+
+If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
 
 If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
 
@@ -113,7 +115,10 @@ sub new(){
   if($op_ref->{'ram'}){
     $self->{'lock_root'}='/dev/shm';
   }
-  $self->{'wait'}=$op_ref->{'wait'} || 11; #ŠJ‚­‚Ì‚ÉŽžŠÔ‚©‚©‚è‰ß‚¬
+  if($op_ref->{'cache'} || $op_ref->{'Cachesize'}){
+    $self->{'Cachesize'}=$op_ref->{'cache'} || $op_ref->{'Cachesize'};
+  }
+  $self->{'wait'}=$op_ref->{'wait'} || 11;
   return bless $self;
 }
 
@@ -134,20 +139,36 @@ sub create_env(){
   my $home_dir='';
   
   if($bdb=~ m!^/!){
-    $home_dir=$self->{'lock_root'}.'/bdb_home'.$bdb; # ˆê‰ñŒÀ‚è‚ÌBDB‚É‚Í–³‘Ê
+    $home_dir=$self->{'lock_root'}.'/bdb_home'.$bdb; 
     unless(-d $home_dir){
       $self->rmkdir($home_dir);
     }
-    $env = new BerkeleyDB::Env {
-      -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL,
-      -Home => $home_dir
-      };
+    if($self->{'Cachesize'}){
+      $env = new BerkeleyDB::Env {
+        -Cachesize => $self->{'Cachesize'},
+        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL,
+        -Home  => $home_dir
+        };
+    }
+    else{
+      $env = new BerkeleyDB::Env {
+        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL,
+        -Home  => $home_dir
+        };
+    }
   }
   else{
-    # rel2abs‚µ‚Ä‚¢‚é‚©‚ç‚»‚ñ‚È‚±‚Æ‚È‚¢”¤‚¾‚¯‚Ç
-    $env = new BerkeleyDB::Env {
-      -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL
-      };
+    if($self->{'Cachesize'}){
+      $env = new BerkeleyDB::Env {
+        -Cachesize => $self->{'Cachesize'},
+        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL
+        };
+    }
+    else{
+      $env = new BerkeleyDB::Env {
+        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL
+        };
+    }
   }
   # DB_CREATE is necessary for ccdb
   # Home is necessary for locking
