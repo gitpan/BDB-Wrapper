@@ -1,5 +1,13 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.18  Sat Sep 06 04:30:00 2008
+        - no_log parameter was added for new BDB::Wrapper({'no_log'=>1 or 0(default)})
+If you set {'no_lock'=>1}, the control of concurrent access will not be used. So the lock files are also not created.
+
+0.17  Fri Sep 05 07:00:00 2008
+        - cache parameter was added for new BDB::Wrapper({'cache'=>$CACHE_SIZE})
+If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
+
 0.16  Mon Jul 01 10:00:00 2008
 	- Document was modified.
 

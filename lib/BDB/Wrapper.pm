@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 
 =head1 NAME
 
@@ -101,9 +101,19 @@ Creates an object of BDB::Wrapper
 
 If you set {'ram'=>1}, you can use /dev/shm/bdb_home for storing locking file for BDB instead of /tmp/bdb_home/.
 
+1 is default value.
+
+If you set {'no_lock'=>1}, the control of concurrent access will not be used. So the lock files are also not created.
+
+0 is default value.
+
 If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
 
+undef is default value.
+
 If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
+
+11 is default value.
 
 =cut
 
@@ -117,6 +127,17 @@ sub new(){
   }
   if($op_ref->{'cache'} || $op_ref->{'Cachesize'}){
     $self->{'Cachesize'}=$op_ref->{'cache'} || $op_ref->{'Cachesize'};
+  }
+  $self->{'no_lock'}=0;
+  if($op_ref->{'no_lock'}){
+    $self->{'no_lock'}++;
+  }
+  $self->{'Flags'}='';
+  if($self->{'no_lock'}){
+    $self->{'Flags'}=DB_CREATE | DB_INIT_MPOOL;
+  }
+  else{
+    $self->{'Flags'}=DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL;
   }
   $self->{'wait'}=$op_ref->{'wait'} || 11;
   return bless $self;
@@ -139,20 +160,23 @@ sub create_env(){
   my $home_dir='';
   
   if($bdb=~ m!^/!){
-    $home_dir=$self->{'lock_root'}.'/bdb_home'.$bdb; 
-    unless(-d $home_dir){
-      $self->rmkdir($home_dir);
+    unless($self->{'no_lock'}){
+      $home_dir=$self->{'lock_root'}.'/bdb_home'.$bdb; 
+      unless(-d $home_dir){
+        $self->rmkdir($home_dir);
+      }
     }
+    
     if($self->{'Cachesize'}){
       $env = new BerkeleyDB::Env {
         -Cachesize => $self->{'Cachesize'},
-        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL,
+        -Flags => $self->{'Flags'},
         -Home  => $home_dir
         };
     }
     else{
       $env = new BerkeleyDB::Env {
-        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL,
+        -Flags => $self->{'Flags'},
         -Home  => $home_dir
         };
     }
@@ -161,12 +185,12 @@ sub create_env(){
     if($self->{'Cachesize'}){
       $env = new BerkeleyDB::Env {
         -Cachesize => $self->{'Cachesize'},
-        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL
+        -Flags => $self->{'Flags'}
         };
     }
     else{
       $env = new BerkeleyDB::Env {
-        -Flags => DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL
+        -Flags => $self->{'Flags'}
         };
     }
   }
