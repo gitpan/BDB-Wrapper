@@ -6,7 +6,7 @@
 # change 'tests => 1' to 'tests => last_test_to_print';
 
 use Test;
-BEGIN { plan tests => 24 };
+BEGIN { plan tests => 27 };
 use BDB::Wrapper;
 use BerkeleyDB;
 ok(1); # If we made it this far, we're ok.
@@ -77,3 +77,22 @@ my $bdbw3;
 ok($bdbw3=new BDB::Wrapper({'no_lock'=>1}));
 ok($bdbh3=$bdbw3->create_write_dbh('no_lock.bdb'));
 $bdbh3->db_close();
+
+unlink $bdb;
+ok($bdbh=$bdbw->create_write_dbh($bdb, {'sort_num'=>1 }));
+
+$bdbh->db_put(1, 1);
+$bdbh->db_put(9, 1);
+$bdbh->db_put(10, 1);
+
+$key=0;
+$value='';
+@values=();
+if(my $cursor=$bdbh->db_cursor()){
+  while($cursor->c_get($key, $value, DB_NEXT)==0){
+	push(@values, $key);
+  }
+  $cursor->c_close();
+}
+ok($values[0]==1 && $values[1]==9 && $values[2]==10);
+ok($bdbh->db_close()==0);

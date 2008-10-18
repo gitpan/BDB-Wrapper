@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.18';
+our $VERSION = '0.20';
 
 =head1 NAME
 
@@ -122,24 +122,45 @@ sub new(){
   my $class=shift;
   my $op_ref=shift;
   $self->{'lock_root'}='/tmp';
-  if($op_ref->{'ram'}){
-    $self->{'lock_root'}='/dev/shm';
-  }
-  if($op_ref->{'cache'} || $op_ref->{'Cachesize'}){
-    $self->{'Cachesize'}=$op_ref->{'cache'} || $op_ref->{'Cachesize'};
-  }
   $self->{'no_lock'}=0;
-  if($op_ref->{'no_lock'}){
-    $self->{'no_lock'}++;
-  }
   $self->{'Flags'}='';
+  $self->{'wait'}= 11;
+  while(my ($key, $value)=each %{$op_ref}){
+    if($key eq 'ram'){
+      if($value){
+        $self->{'lock_root'}='/dev/shm';
+      }
+    }
+    elsif($key eq 'cache'){
+      $self->{'Cachesize'}=$value if(defined($value));
+    }
+    elsif($key eq 'Cachesize'){
+      # Cachesize eq undef ‚Í“®ì‚ÌŽd•û‚ª•s–¾‚È‚Ì‚Å
+      $self->{'Cachesize'}=$value if(defined($value));
+    }
+    elsif($key eq 'no_lock'){
+      if($value){
+        $self->{'no_lock'}++;
+      }
+    }
+    elsif($key eq 'wait'){
+      $self->{'wait'}=$value;
+    }
+    else{
+      my $error='Invalid option: key='.$key;
+      if($value){
+        $error.=', value='.$value;
+      }
+      Carp::croak($error);
+    }
+  }
+  
   if($self->{'no_lock'}){
     $self->{'Flags'}=DB_CREATE | DB_INIT_MPOOL;
   }
   else{
     $self->{'Flags'}=DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL;
   }
-  $self->{'wait'}=$op_ref->{'wait'} || 11;
   return bless $self;
 }
 
@@ -271,7 +292,7 @@ sub create_write_dbh(){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
     }
     elsif($op->{'sort'} || $op->{'sort_num'}){
-      $sort_code_ref=sub {$_[0] cmp $_[1]};
+      $sort_code_ref=sub {$_[0] <=> $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -282,6 +303,13 @@ sub create_write_dbh(){
     $dont_try=shift || 0;
     $sort_code_ref=shift;
   }
+  my $env;
+  if($self->{'op'}->{'no_env'}){
+    $env=undef;
+  }
+  else{
+    $env=$self->create_env($bdb);
+  }
   my $dbh;
   $SIG{ALRM} = sub { die "timeout"};
   eval{
@@ -289,16 +317,17 @@ sub create_write_dbh(){
     if($hash){
       $dbh =new BerkeleyDB::Hash {
         -Filename => $bdb,
-        -Flags    => DB_CREATE,
+        -Flags => DB_CREATE,
         -Mode => 0666,
-        -Env => $self->create_env($bdb)};
+        -Env => $env
+        };
     }
     else{
       $dbh =new BerkeleyDB::Btree {
         -Filename => $bdb,
-        -Flags    => DB_CREATE,
+        -Flags => DB_CREATE,
         -Mode => 0666,
-        -Env => $self->create_env($bdb),
+        -Env => $env,
         -Compare => $sort_code_ref
         };
     }
@@ -311,14 +340,9 @@ sub create_write_dbh(){
         $op->{'dont_try'}=1;
         $dont_try=1;
         my $home_dir=$bdb;
-        if($home_dir=~ s![^/]+$!!){
-          my $i=1;
-          my $lock=$home_dir.'__db.00'.$i;
-          while(-f $lock){
-            unlink $lock;
-            $i++;
-            $lock=$home_dir.'__db.00'.$i;
-          }
+        my $log_dir=$bdb;
+        if($log_dir=~ s!\.[^/\.]+$!!){
+          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
           if(ref($op) eq 'HASH'){
             return $self->create_write_dbh($bdb, $op);
           }
@@ -375,7 +399,7 @@ sub create_read_dbh(){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
     }
     elsif($op->{'sort'} || $op->{'sort_num'}){
-      $sort_code_ref=sub {$_[0] cmp $_[1]};
+      $sort_code_ref=sub {$_[0] <=> $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -386,6 +410,14 @@ sub create_read_dbh(){
     $dont_try=shift || 0;
     $sort_code_ref=shift;
   }
+
+  my $env='';
+  if($self->{'op'}->{'use_env'}){
+    $env=$self->create_env($bdb);
+  }
+  else{
+    $env=undef;
+  }
   
   my $dbh;
   $SIG{ALRM} = sub { die "timeout"};
@@ -393,12 +425,14 @@ sub create_read_dbh(){
     alarm($self->{'wait'});
     if($hash){
       $dbh =new BerkeleyDB::Hash {
+        -Env=>$env,
         -Filename => $bdb,
         -Flags    => DB_RDONLY
         };
     }
     else{
       $dbh =new BerkeleyDB::Btree {
+        -Env=>$env,
         -Filename => $bdb,
         -Flags    => DB_RDONLY,
         -Compare => $sort_code_ref
@@ -412,15 +446,9 @@ sub create_read_dbh(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$bdb;
-        if($home_dir=~ s![^/]+$!!){
-          my $i=1;
-          my $lock=$home_dir.'__db.00'.$i;
-          while(-f $lock){
-            unlink $lock;
-            $i++;
-            $lock=$home_dir.'__db.00'.$i;
-          }
+        my $log_dir=$bdb;
+        if($log_dir=~ s!\.[^/\.]+$!!){
+          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
           if(ref($op) eq 'HASH'){
             return $self->create_read_dbh($bdb, $op);
           }
@@ -477,7 +505,7 @@ sub create_write_hash_ref(){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
     }
     elsif($op->{'sort'} || $op->{'sort_num'}){
-      $sort_code_ref=sub {$_[0] cmp $_[1]};
+      $sort_code_ref=sub {$_[0] <=> $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -492,13 +520,21 @@ sub create_write_hash_ref(){
   if($hash){
     $type='BerkeleyDB::Hash';
   }
+  my $env;
+  if($self->{'op'}->{'no_env'}){
+    $env=undef;
+  }
+  else{
+    $env=$self->create_env($bdb);
+  }
+  
   local $SIG{ALRM} = sub { die "timeout"};
   my %hash;
   eval{
     alarm($self->{'wait'});
     if($sort_code_ref && !$hash){
       tie %hash, $type,
-      -Env=>$self->create_env($bdb),
+      -Env=>$env,
       -Filename => $bdb,
       -Mode => 0666,
       -Flags    => DB_CREATE,
@@ -506,7 +542,7 @@ sub create_write_hash_ref(){
     }
     else{
       tie %hash, $type,
-      -Env=>$self->create_env($bdb),
+      -Env=>$env,
       -Filename => $bdb,
       -Mode => 0666,
       -Flags    => DB_CREATE;
@@ -519,15 +555,9 @@ sub create_write_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$bdb;
-        if($home_dir=~ s![^/]+$!!){
-          my $i=1;
-          my $lock=$home_dir.'__db.00'.$i;
-          while(-f $lock){
-              unlink $lock;
-            $i++;
-            $lock=$home_dir.'__db.00'.$i;
-          }
+        my $log_dir=$bdb;
+        if($log_dir=~ s!\.[^/\.]+$!!){
+          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
           if(ref($op) eq 'HASH'){
             return $self->create_write_hash_ref($bdb, $op);
           }
@@ -583,7 +613,7 @@ sub create_read_hash_ref(){
       $sort_code_ref=sub {$_[1] cmp $_[0]};
     }
     elsif($op->{'sort'} || $op->{'sort_num'}){
-      $sort_code_ref=sub {$_[0] cmp $_[1]};
+      $sort_code_ref=sub {$_[0] <=> $_[1]};
     }
     else{
       $sort_code_ref=$op->{'sort_code_ref'};
@@ -599,19 +629,29 @@ sub create_read_hash_ref(){
   if($hash){
     $type='BerkeleyDB::Hash';
   }
-
+  
+  my $env='';
+  if($self->{'op'}->{'no_env'}){
+    $env=undef;
+  }
+  else{
+    $env=$self->create_env($bdb);
+  }
+  
   my %hash;
   local $SIG{ALRM} = sub { die "timeout"};
   eval{
     alarm($self->{'wait'});
     if($sort_code_ref && !$hash){
       tie %hash, $type,
+      -Env=>$env,
       -Filename => $bdb,
       -Flags    => DB_RDONLY,
       -Compare => $sort_code_ref;
     }
     else{
       tie %hash, $type,
+      -Env=>$env,
       -Filename => $bdb,
       -Flags    => DB_RDONLY;
     }
@@ -623,15 +663,9 @@ sub create_read_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$bdb;
-        if($home_dir=~ s![^/]+$!!){
-          my $i=1;
-          my $lock=$home_dir.'__db.00'.$i;
-          while(-f $lock){
-            unlink $lock;
-            $i++;
-            $lock=$home_dir.'__db.00'.$i;
-          }
+        my $log_dir=$bdb;
+        if($log_dir=~ s!\.[^/\.]+$!!){
+          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
           if(ref($op) eq 'HASH'){
             return $self->create_read_hash_ref($bdb, $op);
           }

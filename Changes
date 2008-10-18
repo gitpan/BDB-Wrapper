@@ -1,5 +1,10 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.20 Sun Oct 19 03:00:00 2008
+	- Fixed the bug of {'sort_num'=>1}
+	- Fixed the behaviour about how to react to the dead lock
+	- Removed the part which creates the warning "Use of uninitialized value in string"
+
 0.18  Sat Sep 06 04:30:00 2008
         - no_log parameter was added for new BDB::Wrapper({'no_log'=>1 or 0(default)})
 If you set {'no_lock'=>1}, the control of concurrent access will not be used. So the lock files are also not created.
