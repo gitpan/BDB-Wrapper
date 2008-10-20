@@ -5,8 +5,8 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'BDB::Wrapper',
     VERSION_FROM      => 'lib/BDB/Wrapper.pm', # finds $VERSION
-    PREREQ_PM         => {}, # e.g., Module::Name => 1.1
+    PREREQ_PM         => {BerkeleyDB=>0}, # e.g., Module::Name => 1.1
+    ABSTRACT          => 'The module to use BerkeleyDB.pm with good option easily',
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
-      (ABSTRACT_FROM  => 'lib/BDB/Wrapper.pm', # retrieve abstract from module
-       AUTHOR         => 'U-www-PC\www <www@x-ray.at>') : ()),
+       (AUTHOR         => 'Hajime Kurita / Admin of http://www.accessup.org/ & http://minakoe.jp/') : ()),
 );

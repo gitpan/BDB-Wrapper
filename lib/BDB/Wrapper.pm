@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 =head1 NAME
 
