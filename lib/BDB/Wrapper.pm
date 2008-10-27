@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 =head1 NAME
 
@@ -121,10 +121,12 @@ sub new(){
   my $self={};
   my $class=shift;
   my $op_ref=shift;
+  $self->{'bdb_dir'}='';
   $self->{'lock_root'}='/tmp';
   $self->{'no_lock'}=0;
   $self->{'Flags'}='';
   $self->{'wait'}= 11;
+  $self->{'home_dir'}='';
   while(my ($key, $value)=each %{$op_ref}){
     if($key eq 'ram'){
       if($value){
@@ -177,14 +179,15 @@ sub create_env(){
   my $self=shift;
   my $bdb=File::Spec->rel2abs(shift) || return;
   my $env;
-  $bdb=~ s!\.bdb$!!i;
-  my $home_dir='';
+  $self->{'bdb_dir'}=$bdb;
+  $self->{'bdb_dir'}=~ s!/[^/]+$!!;
   
   if($bdb=~ m!^/!){
     unless($self->{'no_lock'}){
-      $home_dir=$self->{'lock_root'}.'/bdb_home'.$bdb; 
-      unless(-d $home_dir){
-        $self->rmkdir($home_dir);
+      $self->{'home_dir'}=$self->{'lock_root'}.'/bdb_home'.$bdb;
+      $self->{'home_dir'}=~ s!\.[^/\.\s]+$!!;
+      unless(-d $self->{'home_dir'}){
+        $self->rmkdir($self->{'home_dir'});
       }
     }
     
@@ -192,13 +195,13 @@ sub create_env(){
       $env = new BerkeleyDB::Env {
         -Cachesize => $self->{'Cachesize'},
         -Flags => $self->{'Flags'},
-        -Home  => $home_dir
+        -Home  => $self->{'home_dir'}
         };
     }
     else{
       $env = new BerkeleyDB::Env {
         -Flags => $self->{'Flags'},
-        -Home  => $home_dir
+        -Home  => $self->{'home_dir'}
         };
     }
   }
@@ -304,16 +307,19 @@ sub create_write_dbh(){
     $sort_code_ref=shift;
   }
   my $env;
+
   if($self->{'op'}->{'no_env'}){
     $env=undef;
   }
   else{
     $env=$self->create_env($bdb);
   }
+  
   my $dbh;
   $SIG{ALRM} = sub { die "timeout"};
   eval{
     alarm($self->{'wait'});
+    $self->rmkdir($self->{'bdb_dir'});
     if($hash){
       $dbh =new BerkeleyDB::Hash {
         -Filename => $bdb,
@@ -333,22 +339,17 @@ sub create_write_dbh(){
     }
     alarm(0);
   };
-  
   unless($dont_try){
     if($@){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$bdb;
-        my $log_dir=$bdb;
-        if($log_dir=~ s!\.[^/\.]+$!!){
-          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
-          if(ref($op) eq 'HASH'){
-            return $self->create_write_dbh($bdb, $op);
-          }
-          else{
-            return $self->create_write_dbh($bdb, $hash, $dont_try, $sort_code_ref);
-          }
+        system('rm -rf '.$self->{'home_dir'}) if ($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        if(ref($op) eq 'HASH'){
+          return $self->create_write_dbh($bdb, $op);
+        }
+        else{
+          return $self->create_write_dbh($bdb, $hash, $dont_try, $sort_code_ref);
         }
       }
       else{
@@ -446,15 +447,12 @@ sub create_read_dbh(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $log_dir=$bdb;
-        if($log_dir=~ s!\.[^/\.]+$!!){
-          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
-          if(ref($op) eq 'HASH'){
-            return $self->create_read_dbh($bdb, $op);
-          }
-          else{
-            return $self->create_read_dbh($bdb, $hash, $dont_try, $sort_code_ref);
-          }
+        system('rm -rf '.$self->{'home_dir'}) if ($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        if(ref($op) eq 'HASH'){
+          return $self->create_read_dbh($bdb, $op);
+        }
+        else{
+          return $self->create_read_dbh($bdb, $hash, $dont_try, $sort_code_ref);
         }
       }
       else{
@@ -532,6 +530,7 @@ sub create_write_hash_ref(){
   my %hash;
   eval{
     alarm($self->{'wait'});
+    $self->rmkdir($self->{'bdb_dir'});
     if($sort_code_ref && !$hash){
       tie %hash, $type,
       -Env=>$env,
@@ -555,15 +554,12 @@ sub create_write_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $log_dir=$bdb;
-        if($log_dir=~ s!\.[^/\.]+$!!){
-          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
-          if(ref($op) eq 'HASH'){
-            return $self->create_write_hash_ref($bdb, $op);
-          }
-          else{
-            return $self->create_write_hash_ref($bdb, $hash, $dont_try, $sort_code_ref);
-          }
+        system('rm -rf '.$self->{'home_dir'}) if ($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        if(ref($op) eq 'HASH'){
+          return $self->create_write_hash_ref($bdb, $op);
+        }
+        else{
+          return $self->create_write_hash_ref($bdb, $hash, $dont_try, $sort_code_ref);
         }
       }
       else{
@@ -663,15 +659,12 @@ sub create_read_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $log_dir=$bdb;
-        if($log_dir=~ s!\.[^/\.]+$!!){
-          system('rm -rf '.$log_dir) if ($log_dir=~ m!^(?:/tmp|/dev/shm)!);
-          if(ref($op) eq 'HASH'){
-            return $self->create_read_hash_ref($bdb, $op);
-          }
-          else{
-            return $self->create_read_hash_ref($bdb, $hash, $dont_try, $sort_code_ref);
-          }
+        system('rm -rf '.$self->{'home_dir'}) if($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        if(ref($op) eq 'HASH'){
+          return $self->create_read_hash_ref($bdb, $op);
+        }
+        else{
+          return $self->create_read_hash_ref($bdb, $hash, $dont_try, $sort_code_ref);
         }
       }
       else{

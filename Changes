@@ -1,5 +1,9 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.22 Mon Oct 27 23:00:00 2008
+	- create_write_dbh now can creates bdb without mkdir for bdb.
+	- modified the behavior of how to remove dead lock
+
 0.21 Mon Oct 20 23:00:00 2008
 	- Added dependency of BerkeleyDB.pm to Makefile.PL
 
