@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 =head1 NAME
 
@@ -184,7 +184,7 @@ sub create_env(){
   
   if($bdb=~ m!^/!){
     unless($self->{'no_lock'}){
-      $self->{'home_dir'}=$self->{'lock_root'}.'/bdb_home'.$bdb;
+      $self->{'home_dir'}=$self->get_bdb_home($bdb);
       $self->{'home_dir'}=~ s!\.[^/\.\s]+$!!;
       unless(-d $self->{'home_dir'}){
         $self->rmkdir($self->{'home_dir'});
@@ -703,4 +703,22 @@ sub rmkdir(){
     }
   }
   return 0;
+}
+
+
+=head2 get_bdb_home
+
+This will return bdb_home.
+
+You may need the information for recovery and so on.
+
+get_bdb_home($BDB);
+
+=cut
+
+sub get_bdb_home(){
+  my $self=shift;
+  my $bdb=File::Spec->rel2abs(shift) || return;;
+  $bdb=~ s!\.bdb$!!i;
+  return $self->{'lock_root'}.'/bdb_home'.$bdb;
 }

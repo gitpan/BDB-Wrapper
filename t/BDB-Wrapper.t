@@ -6,9 +6,10 @@
 # change 'tests => 1' to 'tests => last_test_to_print';
 
 use Test;
-BEGIN { plan tests => 27 };
+BEGIN { plan tests => 28 };
 use BDB::Wrapper;
 use BerkeleyDB;
+use File::Spec;
 ok(1); # If we made it this far, we're ok.
 
 #########################
@@ -96,3 +97,7 @@ if(my $cursor=$bdbh->db_cursor()){
 }
 ok($values[0]==1 && $values[1]==9 && $values[2]==10);
 ok($bdbh->db_close()==0);
+my $bdb_dir=File::Spec->rel2abs($bdb);
+$bdb_dir=~ s!\.bdb$!!;
+$bdb_dir='/tmp/bdb_home'.$bdb_dir;
+ok($bdbw->get_bdb_home($bdb) eq $bdb_dir);
