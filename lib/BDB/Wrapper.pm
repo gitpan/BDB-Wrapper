@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 =head1 NAME
 
@@ -39,7 +39,6 @@ If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
 
 =head1 Example
 
-  # Code Example
 package test_bdb;
 use BDB::Wrapper;
 
@@ -65,13 +64,10 @@ sub init_vars(){
 
 sub demo(){
   my $self=shift;
-  # Open db handler for writing
   if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
-    # Ignore Ctr+C while putting to avoid to destruct bdb.
     local $SIG{'INT'}='IGNORE';
     local $SIG{'TERM'}='IGNORE';
     local $SIG{'QUIT'}='IGNORE';
-    # put
     if($dbh->db_put('name', 'value')==0){
     }
     else{
@@ -80,10 +76,8 @@ sub demo(){
     $dbh->db_close();
   }
 
-  # Open db handler for reading
   if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
     my $value;
-    # read
     if($dbh->db_get('name', $value)==0){
       print 'Name='.$name.' value='.$value."\n";
     }
@@ -261,6 +255,10 @@ This will creates database handler for writing.
 
 $self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
+OR
+
+$self->create_write_dbh({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+
 In the default mode, BDB file will be created as Btree;
 
 If you set 'hash' 1, Hash BDB will be created.
@@ -279,8 +277,16 @@ If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 sub create_write_dbh(){
   my $self=shift;
-  my $bdb=File::Spec->rel2abs(shift);
-  my $op=shift;
+  my $bdb=shift;
+  my $op='';
+  if($bdb && ref($bdb) eq 'HASH'){
+    $op=$bdb;
+    $bdb=$op->{'bdb'};
+  }
+  else{
+    $op=shift;
+  }
+  $bdb=File::Spec->rel2abs($bdb);
   
   my $hash=0;
   my $dont_try=0;
@@ -367,6 +373,10 @@ This will creates database handler for reading.
 
 $self->create_read_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
+OR
+
+$self->create_read_dbh({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+
 In the default mode, BDB file will be created as Btree;
 
 If you set 'hash' 1, Hash BDB will be created.
@@ -385,8 +395,17 @@ If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 sub create_read_dbh(){
   my $self=shift;
-  my $bdb=File::Spec->rel2abs(shift);
-  my $op=shift;
+  my $bdb=shift;
+  my $op='';
+  if($bdb && ref($bdb) eq 'HASH'){
+    $op=$bdb;
+    $bdb=$op->{'bdb'};
+  }
+  else{
+    $op=shift;
+  }
+  $bdb=File::Spec->rel2abs($bdb);
+  
   my $hash=0;
   my $dont_try=0;
   my $sort_code_ref=undef;
@@ -470,6 +489,11 @@ This will creates hash for writing.
 
 $self->create_write_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference,  'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
+OR
+
+$self->create_write_hash_ref({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference,  'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+
+
 In the default mode, BDB file will be created as Btree;
 
 If you set 'hash' 1, Hash BDB will be created.
@@ -488,8 +512,17 @@ If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 sub create_write_hash_ref(){
   my $self=shift;
-  my $bdb=File::Spec->rel2abs(shift);
-  my $op=shift;
+  my $bdb=shift;
+  my $op='';
+  if($bdb && ref($bdb) eq 'HASH'){
+    $op=$bdb;
+    $bdb=$op->{'bdb'};
+  }
+  else{
+    $op=shift;
+  }
+  $bdb=File::Spec->rel2abs($bdb);
+  
   my $hash=0;
   my $dont_try=0;
   my $sort_code_ref=undef;
@@ -574,7 +607,11 @@ sub create_write_hash_ref(){
 
 This will creates database handler for reading.
 
-$self->create_read_hash_ref($bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+$self->create_read_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+
+OR
+
+$self->create_read_hash_ref({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -594,8 +631,17 @@ If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 sub create_read_hash_ref(){
   my $self=shift;
-  my $bdb=File::Spec->rel2abs(shift);
-  my $op=shift;
+  my $bdb=shift;
+  my $op='';
+  if($bdb && ref($bdb) eq 'HASH'){
+    $op=$bdb;
+    $bdb=$op->{'bdb'};
+  }
+  else{
+    $op=shift;
+  }
+  $bdb=File::Spec->rel2abs($bdb);
+  
   my $hash=0;
   my $dont_try=0;
   my $sort_code_ref=undef;

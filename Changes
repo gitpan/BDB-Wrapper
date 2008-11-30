@@ -1,5 +1,8 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.24 Sun Nov 30 13:00:00 2008
+	- {'bdb'=>$bdb} option became available for create_write_dbh and so on.
+
 0.23 Sat Nov 01 22:00:00 2008
 	- new api get_bdb_home($BDB) was added.
 

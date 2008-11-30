@@ -23,7 +23,7 @@ my $bdb='test.bdb';
 unlink $bdb if -f $bdb;
 my $bdbh;
 my $sort_code_ref=sub {lc $_[1] cmp lc $_[0]};
-ok($bdbh=$bdbw->create_write_dbh($bdb, { 'reverse'=>1 }));
+ok($bdbh=$bdbw->create_write_dbh({'bdb'=>$bdb, 'reverse'=>1 }));
 
 ok($bdbh->db_put(1, 1)==0);
 my $test_value;
@@ -61,11 +61,11 @@ $bdbh->db_get(4, $value2);
 ok($value2==4);
 
 my $bdb2='test2.bdb';
-$write_hash_ref=$bdbw->create_write_hash_ref($bdb2);
+$write_hash_ref=$bdbw->create_write_hash_ref({'bdb'=>$bdb2});
 $write_hash_ref->{'write'}=1;
 undef $write_hash_ref;
 
-my $hash_ref=$bdbw->create_read_hash_ref($bdb2);
+my $hash_ref=$bdbw->create_read_hash_ref({'bdb'=>$bdb2});
 ok($hash_ref->{'write'}==1);
 
 my $new_bdbw=new BDB::Wrapper({'ram'=>1});
@@ -97,6 +97,7 @@ if(my $cursor=$bdbh->db_cursor()){
 }
 ok($values[0]==1 && $values[1]==9 && $values[2]==10);
 ok($bdbh->db_close()==0);
+
 my $bdb_dir=File::Spec->rel2abs($bdb);
 $bdb_dir=~ s!\.bdb$!!;
 $bdb_dir='/tmp/bdb_home'.$bdb_dir;
