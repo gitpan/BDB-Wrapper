@@ -1,4 +1,6 @@
 Revision history for Perl extension BDB::Wrapper.
+0.25 Fri Aug 07 17:10:00 2009
+	- Bug fix about no_env option of create_write_dbh
 
 0.24 Sun Nov 30 13:00:00 2008
 	- {'bdb'=>$bdb} option became available for create_write_dbh and so on.

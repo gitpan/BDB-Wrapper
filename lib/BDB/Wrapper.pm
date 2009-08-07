@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.24';
+our $VERSION = '0.25';
 
 =head1 NAME
 
@@ -314,7 +314,7 @@ sub create_write_dbh(){
   }
   my $env;
 
-  if($self->{'op'}->{'no_env'}){
+  if($op->{'no_env'}){
     $env=undef;
   }
   else{
@@ -432,7 +432,7 @@ sub create_read_dbh(){
   }
 
   my $env='';
-  if($self->{'op'}->{'use_env'}){
+  if($op->{'use_env'}){
     $env=$self->create_env($bdb);
   }
   else{
