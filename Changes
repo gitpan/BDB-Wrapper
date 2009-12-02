@@ -1,4 +1,10 @@
 Revision history for Perl extension BDB::Wrapper.
+0.26 Wed Dec 02 15:30:00 2009
+	- Added LockDetect function to create_env();
+	- Added cache and no_lock option to create_env() and create_write_dbh(). It will overwrite the value specified in new()
+	- Updated the example code
+	- Added the comment which method is not recommended one now.
+
 0.25 Fri Aug 07 17:10:00 2009
 	- Bug fix about no_env option of create_write_dbh
 

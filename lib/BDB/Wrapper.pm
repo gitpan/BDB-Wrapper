@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 
 =head1 NAME
 
@@ -65,15 +65,19 @@ sub init_vars(){
 sub demo(){
   my $self=shift;
   if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
-    local $SIG{'INT'}='IGNORE';
-    local $SIG{'TERM'}='IGNORE';
-    local $SIG{'QUIT'}='IGNORE';
-    if($dbh->db_put('name', 'value')==0){
+    local $SIG{'INT'};
+    local $SIG{'TERM'};
+    local $SIG{'QUIT'};
+    $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
+    if($dbh){
+      if($dbh->db_put('name', 'value')==0){
+      }
+      else{
+        $dbh->db_close() if $dbh;
+        die 'Failed to put to '.$self->{'bdb'};
+      }
     }
-    else{
-      die 'Failed to put to '.$self->{'bdb'};
-    }
-    $dbh->db_close();
+    $dbh->db_close() if $dbh;
   }
 
   if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
@@ -103,6 +107,8 @@ If you set {'no_lock'=>1}, the control of concurrent access will not be used. So
 
 If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
 
+The value can be overwritten by the cache value of create_write_dbh
+
 undef is default value.
 
 If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
@@ -115,12 +121,10 @@ sub new(){
   my $self={};
   my $class=shift;
   my $op_ref=shift;
-  $self->{'bdb_dir'}='';
   $self->{'lock_root'}='/tmp';
   $self->{'no_lock'}=0;
   $self->{'Flags'}='';
   $self->{'wait'}= 11;
-  $self->{'home_dir'}='';
   while(my ($key, $value)=each %{$op_ref}){
     if($key eq 'ram'){
       if($value){
@@ -150,13 +154,6 @@ sub new(){
       Carp::croak($error);
     }
   }
-  
-  if($self->{'no_lock'}){
-    $self->{'Flags'}=DB_CREATE | DB_INIT_MPOOL;
-  }
-  else{
-    $self->{'Flags'}=DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL;
-  }
   return bless $self;
 }
 
@@ -167,50 +164,50 @@ __END__
 
 Creates Environment for BerkeleyDB
 
+create_env({'bdb'=>$bdb, 'no_lock='>0(default) or 1, 'cache'=>undef(default) or integer});
+
+no_lock and cache will overwrite the value specified in new but used only in this env
+
 =cut
 
 sub create_env(){
   my $self=shift;
-  my $bdb=File::Spec->rel2abs(shift) || return;
+  my $op=shift;
+  my $bdb=File::Spec->rel2abs($op->{'bdb'}) || return;
+  my $no_lock=$op->{'no_lock'} || $self->{'no_lock'} || 0;
+  my $cache=$op->{'cache'} || $self->{'cache'} || undef;
   my $env;
-  $self->{'bdb_dir'}=$bdb;
-  $self->{'bdb_dir'}=~ s!/[^/]+$!!;
-  
-  if($bdb=~ m!^/!){
-    unless($self->{'no_lock'}){
-      $self->{'home_dir'}=$self->get_bdb_home($bdb);
-      $self->{'home_dir'}=~ s!\.[^/\.\s]+$!!;
-      unless(-d $self->{'home_dir'}){
-        $self->rmkdir($self->{'home_dir'});
-      }
-    }
-    
-    if($self->{'Cachesize'}){
-      $env = new BerkeleyDB::Env {
-        -Cachesize => $self->{'Cachesize'},
-        -Flags => $self->{'Flags'},
-        -Home  => $self->{'home_dir'}
-        };
-    }
-    else{
-      $env = new BerkeleyDB::Env {
-        -Flags => $self->{'Flags'},
-        -Home  => $self->{'home_dir'}
-        };
-    }
+  my $Flags;
+  if($no_lock){
+    $Flags=DB_CREATE | DB_INIT_MPOOL;
   }
   else{
-    if($self->{'Cachesize'}){
-      $env = new BerkeleyDB::Env {
-        -Cachesize => $self->{'Cachesize'},
-        -Flags => $self->{'Flags'}
-        };
-    }
-    else{
-      $env = new BerkeleyDB::Env {
-        -Flags => $self->{'Flags'}
-        };
-    }
+    $Flags=DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL;
+  }
+  my $bdb_dir=$bdb;
+  $bdb_dir=~ s!/[^/]+$!!;
+  my $lock_flag;
+  my $home_dir=$self->get_bdb_home($bdb);
+  $home_dir=~ s!\.[^/\.\s]+$!!;
+  unless(-d $home_dir){
+    $self->rmkdir($home_dir);
+  }
+  
+  $lock_flag=DB_LOCK_OLDEST unless($no_lock);
+  if($cache){
+    $env = new BerkeleyDB::Env {
+      -Cachesize => $cache,
+      -Flags => $Flags,
+      -Home  => $home_dir,
+      -LockDetect => $lock_flag
+      };
+  }
+  else{
+    $env = new BerkeleyDB::Env {
+      -Flags => $Flags,
+      -Home  => $home_dir,
+      -LockDetect => $lock_flag
+      };
   }
   # DB_CREATE is necessary for ccdb
   # Home is necessary for locking
@@ -220,6 +217,8 @@ sub create_env(){
 
 
 =head2 create_dbh
+
+Not recommened method. Please use create_read_dbh() or create_write_dbh().
 
 Creates database handler for BerkeleyDB
 
@@ -235,6 +234,8 @@ sub create_dbh(){
 }
 
 =head2 create_hash_ref
+
+Not recommended method. Please use create_write_dbh().
 
 Creates database handler for BerkeleyDB
 
@@ -253,11 +254,15 @@ sub create_hash_ref(){
 
 This will creates database handler for writing.
 
+Not recommended:
+
 $self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 OR
 
-$self->create_write_dbh({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+Recommended:
+
+$self->create_write_dbh({'bdb'=>$bdb, 'cache'=>undef(default) or integer, 'hash'=>0 or 1, 'dont_try'=>0 or 1,'no_lock'=>0(default) or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -285,8 +290,10 @@ sub create_write_dbh(){
   }
   else{
     $op=shift;
+    $op->{'bdb'}=$bdb;
   }
-  $bdb=File::Spec->rel2abs($bdb);
+  
+  $op->{'bdb'}=File::Spec->rel2abs($op->{'bdb'});
   
   my $hash=0;
   my $dont_try=0;
@@ -318,17 +325,17 @@ sub create_write_dbh(){
     $env=undef;
   }
   else{
-    $env=$self->create_env($bdb);
+    $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}});
   }
   
   my $dbh;
   $SIG{ALRM} = sub { die "timeout"};
   eval{
     alarm($self->{'wait'});
-    $self->rmkdir($self->{'bdb_dir'});
+    $self->rmkdir($bdb_dir);
     if($hash){
       $dbh =new BerkeleyDB::Hash {
-        -Filename => $bdb,
+        -Filename => $op->{'bdb'},
         -Flags => DB_CREATE,
         -Mode => 0666,
         -Env => $env
@@ -336,7 +343,7 @@ sub create_write_dbh(){
     }
     else{
       $dbh =new BerkeleyDB::Btree {
-        -Filename => $bdb,
+        -Filename => $op->{'bdb'},
         -Flags => DB_CREATE,
         -Mode => 0666,
         -Env => $env,
@@ -345,17 +352,19 @@ sub create_write_dbh(){
     }
     alarm(0);
   };
+  
   unless($dont_try){
     if($@){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        system('rm -rf '.$self->{'home_dir'}) if ($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        my $home_dir=$self->get_bdb_home($op->{'bdb'});
+        system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
-          return $self->create_write_dbh($bdb, $op);
+          return $self->create_write_dbh($op->{'bdb'}, $op);
         }
         else{
-          return $self->create_write_dbh($bdb, $hash, $dont_try, $sort_code_ref);
+          return $self->create_write_dbh($op->{'bdb'}, $hash, $dont_try, $sort_code_ref);
         }
       }
       else{
@@ -403,8 +412,9 @@ sub create_read_dbh(){
   }
   else{
     $op=shift;
+    $op->{'bdb'}=$bdb;
   }
-  $bdb=File::Spec->rel2abs($bdb);
+  $op->{'bdb'}=File::Spec->rel2abs($op->{'bdb'});
   
   my $hash=0;
   my $dont_try=0;
@@ -433,7 +443,7 @@ sub create_read_dbh(){
 
   my $env='';
   if($op->{'use_env'}){
-    $env=$self->create_env($bdb);
+    $env=$self->create_env({'bdb'=>$op->{'bdb'}});
   }
   else{
     $env=undef;
@@ -446,14 +456,14 @@ sub create_read_dbh(){
     if($hash){
       $dbh =new BerkeleyDB::Hash {
         -Env=>$env,
-        -Filename => $bdb,
+        -Filename => $op->{'bdb'},
         -Flags    => DB_RDONLY
         };
     }
     else{
       $dbh =new BerkeleyDB::Btree {
         -Env=>$env,
-        -Filename => $bdb,
+        -Filename => $op->{'bdb'},
         -Flags    => DB_RDONLY,
         -Compare => $sort_code_ref
         };
@@ -466,12 +476,13 @@ sub create_read_dbh(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        system('rm -rf '.$self->{'home_dir'}) if ($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        my $home_dir=$self->get_bdb_home($op->{'bdb'});
+        system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
-          return $self->create_read_dbh($bdb, $op);
+          return $self->create_read_dbh($op->{'bdb'}, $op);
         }
         else{
-          return $self->create_read_dbh($bdb, $hash, $dont_try, $sort_code_ref);
+          return $self->create_read_dbh($op->{'bdb'}, $hash, $dont_try, $sort_code_ref);
         }
       }
       else{
@@ -484,6 +495,8 @@ sub create_read_dbh(){
 
 
 =head2 create_write_hash_ref
+
+Not recommended method. Please use create_write_dbh().
 
 This will creates hash for writing.
 
@@ -556,14 +569,14 @@ sub create_write_hash_ref(){
     $env=undef;
   }
   else{
-    $env=$self->create_env($bdb);
+    $env=$self->create_env({'bdb'=>$bdb});
   }
   
   local $SIG{ALRM} = sub { die "timeout"};
   my %hash;
   eval{
     alarm($self->{'wait'});
-    $self->rmkdir($self->{'bdb_dir'});
+    $self->rmkdir($bdb_dir);
     if($sort_code_ref && !$hash){
       tie %hash, $type,
       -Env=>$env,
@@ -587,7 +600,8 @@ sub create_write_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        system('rm -rf '.$self->{'home_dir'}) if ($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        my $home_dir=$self->get_bdb_home($bdb);
+        system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
           return $self->create_write_hash_ref($bdb, $op);
         }
@@ -604,6 +618,8 @@ sub create_write_hash_ref(){
 }
 
 =head2 create_read_hash_ref
+
+Not recommended method. Please use create_read_dbh and cursor().
 
 This will creates database handler for reading.
 
@@ -677,7 +693,7 @@ sub create_read_hash_ref(){
     $env=undef;
   }
   else{
-    $env=$self->create_env($bdb);
+    $env=$self->create_env({'bdb'=>$bdb});
   }
   
   my %hash;
@@ -705,7 +721,8 @@ sub create_read_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        system('rm -rf '.$self->{'home_dir'}) if($self->{'home_dir'}=~ m!^(?:/tmp|/dev/shm)!);
+        my $home_dir=$self->get_bdb_home($bdb);
+        system('rm -rf '.$home_dir) if($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
           return $self->create_read_hash_ref($bdb, $op);
         }
