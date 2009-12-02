@@ -1,4 +1,7 @@
 Revision history for Perl extension BDB::Wrapper.
+0.27 Wed Dec 03 18:30:00 2009
+	- make test removes bdb files and home directories created by itself
+
 0.26 Wed Dec 02 15:30:00 2009
 	- Added LockDetect function to create_env();
 	- Added cache and no_lock option to create_env() and create_write_dbh(). It will overwrite the value specified in new()

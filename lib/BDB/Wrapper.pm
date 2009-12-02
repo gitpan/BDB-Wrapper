@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 
 =head1 NAME
 
@@ -69,13 +69,11 @@ sub demo(){
     local $SIG{'TERM'};
     local $SIG{'QUIT'};
     $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
-    if($dbh){
-      if($dbh->db_put('name', 'value')==0){
-      }
-      else{
-        $dbh->db_close() if $dbh;
-        die 'Failed to put to '.$self->{'bdb'};
-      }
+    if($dbh && $dbh->db_put('name', 'value')==0){
+    }
+    else{
+      $dbh->db_close() if $dbh;
+      die 'Failed to put to '.$self->{'bdb'};
     }
     $dbh->db_close() if $dbh;
   }

@@ -16,10 +16,13 @@ ok(1); # If we made it this far, we're ok.
 
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
+
+my %bdbs=();
 my $bdbw;
 ok($bdbw=new BDB::Wrapper({'cache'=>10000000}));
 
 my $bdb='test.bdb';
+$bdbs{$bdb}=1;
 unlink $bdb if -f $bdb;
 my $bdb_home='';
 $bdb_home=$bdbw->get_bdb_home($bdb);
@@ -65,6 +68,7 @@ $bdbh->db_get(4, $value2);
 ok($value2==4);
 
 my $bdb2='test2.bdb';
+$bdbs{$bdb2}=1;
 $write_hash_ref=$bdbw->create_write_hash_ref({'bdb'=>$bdb2});
 $write_hash_ref->{'write'}=1;
 undef $write_hash_ref;
@@ -74,16 +78,20 @@ ok($hash_ref->{'write'}==1);
 
 my $new_bdbw=new BDB::Wrapper({'ram'=>1});
 my $new_dbh;
-ok($new_dbh=$new_bdbw->create_write_dbh('test3.bdb'));
+my $test_bdb='test3.bdb';
+$bdbs{$test_bdb}=1;
+ok($new_dbh=$new_bdbw->create_write_dbh($test_bdb));
 ok($new_dbh->db_put('name', $value)==0);
 $new_dbh->db_close();
 
 my $bdbw3;
+my $no_lock_bdb='no_lock.bdb';
+$bdbs{$no_lock_bdb}=1;
 ok($bdbw3=new BDB::Wrapper({'no_lock'=>1}));
-ok($bdbh3=$bdbw3->create_write_dbh('no_lock.bdb'));
+ok($bdbh3=$bdbw3->create_write_dbh($no_lock_bdb));
 ok(!(-f '__db.001'));
 
-ok((-f $bdbw3->get_bdb_home('no_lock.bdb').'/__db.001'));
+ok((-f $bdbw3->get_bdb_home($no_lock_bdb).'/__db.001'));
 $bdbh3->db_close();
 
 unlink $bdb;
@@ -113,7 +121,9 @@ ok($bdbw->get_bdb_home($bdb) eq $bdb_dir);
 
 my $bdbw4;
 my $bdb4='/tmp/abs_path.bdb';
+$bdbs{$bdb4}=1;
 my $no_env_bdb='no_env.bdb';
+$bdbs{$no_env_bdb}=1;
 unlink $no_env_bdb if -f $no_env_bdb;
 $bdbw4=new BDB::Wrapper();
 unlink $bdb4 if -f $bdb4;
@@ -145,3 +155,11 @@ unlink $no_env_bdb;
 $bdbh4=$bdbw4->create_write_dbh({'bdb'=>$no_env_bdb, 'cache'=>16000, 'no_lock'=>1});
 ok($bdbh4->db_put(1, 2)==0);
 ok($bdbh4->db_close()==0);
+
+foreach my $bdb (keys %bdbs){
+	my $home_dir=$bdbw->get_bdb_home($bdb);
+	if($home_dir=~ m!^(?:/tmp/|/dev/shm)!){
+		system('rm -rf '.$home_dir);
+	}
+	unlink $bdb;
+}
