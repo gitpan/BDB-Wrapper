@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 
 =head1 NAME
 
@@ -39,52 +39,88 @@ If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
 
 =head1 Example
 
+=cut
+
+=pod
+
 package test_bdb;
 use BDB::Wrapper;
 
 my $pro=new test_bdb;
+
 $pro->run();
 
 sub new(){
+
   my $self={};
+
   return bless $self;
+
 }
 
 sub run(){
+
   my $self=shift;
+
   $self->init_vars();
+
   $self->demo();
+
 }
 
 sub init_vars(){
+
   my $self=shift;
+
   $self->{'bdb'}='/tmp/test.bdb';
+
   $self->{'bdbw'}=new BDB::Wrapper;
 }
 
 sub demo(){
+
   my $self=shift;
+
   if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
+
     local $SIG{'INT'};
+
     local $SIG{'TERM'};
+
     local $SIG{'QUIT'};
+
     $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
+
     if($dbh && $dbh->db_put('name', 'value')==0){
+
     }
+
     else{
+
       $dbh->db_close() if $dbh;
+
       die 'Failed to put to '.$self->{'bdb'};
+
     }
+
     $dbh->db_close() if $dbh;
+
   }
 
   if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
+
     my $value;
+
     if($dbh->db_get('name', $value)==0){
+
       print 'Name='.$name.' value='.$value."\n";
+
     }
+
     $dbh->db_close();
+
   }
+
 }
 
 =cut

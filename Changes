@@ -1,4 +1,7 @@
 Revision history for Perl extension BDB::Wrapper.
+0.28 Wed Dec 03 19:30:00 2009
+	- Updated document for CPAN
+
 0.27 Wed Dec 03 18:30:00 2009
 	- make test removes bdb files and home directories created by itself
 
