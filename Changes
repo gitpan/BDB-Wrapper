@@ -1,4 +1,7 @@
 Revision history for Perl extension BDB::Wrapper.
+0.30 Thu Dec 03 14:10:00 2009
+	- Added cache and no_lock option to reate_read_dbh(). It will overwrite the value specified in new()
+
 0.29 Thu Dec 03 09:40:00 2009
 	- Fixed the bug of Cachesize in create_env()
 

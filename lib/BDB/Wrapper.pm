@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.29';
+our $VERSION = '0.30';
 
 =head1 NAME
 
@@ -44,6 +44,7 @@ If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
 =pod
 
 package test_bdb;
+
 use BDB::Wrapper;
 
 my $pro=new test_bdb;
@@ -474,10 +475,10 @@ sub create_read_dbh(){
     $dont_try=shift || 0;
     $sort_code_ref=shift;
   }
-
+  
   my $env='';
   if($op->{'use_env'}){
-    $env=$self->create_env({'bdb'=>$op->{'bdb'}});
+    $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}});
   }
   else{
     $env=undef;

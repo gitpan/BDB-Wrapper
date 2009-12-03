@@ -6,7 +6,7 @@
 # change 'tests => 1' to 'tests => last_test_to_print';
 
 use Test;
-BEGIN { plan tests => 47 };
+BEGIN { plan tests => 50 };
 use BDB::Wrapper;
 use BerkeleyDB;
 use File::Spec;
@@ -162,6 +162,12 @@ $bdbh=$bdbw->create_write_dbh({'bdb'=>$no_lock_write_bdb, 'cache'=>16000, 'no_lo
 ok($bdbh->db_put(1, 2)==0);
 ok($bdbh->db_close()==0);
 ok(-d $bdbw->get_bdb_home($no_lock_write_bdb));
+
+$bdbh=$bdbw->create_read_dbh({'bdb'=>$no_lock_write_bdb, 'cache'=>16000, 'no_lock'=>1});
+my $tv='';
+ok($bdbh->db_get(1, $tv)==0);
+ok($tv==2);
+ok($bdbh->db_close()==0);
 
 foreach my $bdb (keys %bdbs){
 	my $home_dir=$bdbw->get_bdb_home($bdb);
