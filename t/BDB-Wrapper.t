@@ -6,7 +6,7 @@
 # change 'tests => 1' to 'tests => last_test_to_print';
 
 use Test;
-BEGIN { plan tests => 44 };
+BEGIN { plan tests => 47 };
 use BDB::Wrapper;
 use BerkeleyDB;
 use File::Spec;
@@ -155,6 +155,13 @@ unlink $no_env_bdb;
 $bdbh4=$bdbw4->create_write_dbh({'bdb'=>$no_env_bdb, 'cache'=>16000, 'no_lock'=>1});
 ok($bdbh4->db_put(1, 2)==0);
 ok($bdbh4->db_close()==0);
+
+my $no_lock_write_bdb='/tmp/no_lock_write.bdb';
+$bdbs{$no_lock_write_bdb}=1;
+$bdbh=$bdbw->create_write_dbh({'bdb'=>$no_lock_write_bdb, 'cache'=>16000, 'no_lock'=>1});
+ok($bdbh->db_put(1, 2)==0);
+ok($bdbh->db_close()==0);
+ok(-d $bdbw->get_bdb_home($no_lock_write_bdb));
 
 foreach my $bdb (keys %bdbs){
 	my $home_dir=$bdbw->get_bdb_home($bdb);

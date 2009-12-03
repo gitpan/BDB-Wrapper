@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.28';
+our $VERSION = '0.29';
 
 =head1 NAME
 
@@ -209,7 +209,7 @@ sub create_env(){
   my $op=shift;
   my $bdb=File::Spec->rel2abs($op->{'bdb'}) || return;
   my $no_lock=$op->{'no_lock'} || $self->{'no_lock'} || 0;
-  my $cache=$op->{'cache'} || $self->{'cache'} || undef;
+  my $cache=$op->{'cache'} || $self->{'Cachesize'} || undef;
   my $env;
   my $Flags;
   if($no_lock){

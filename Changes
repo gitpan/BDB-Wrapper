@@ -1,4 +1,7 @@
 Revision history for Perl extension BDB::Wrapper.
+0.29 Thu Dec 03 09:40:00 2009
+	- Fixed the bug of Cachesize in create_env()
+
 0.28 Wed Dec 03 19:30:00 2009
 	- Updated document for CPAN
 
