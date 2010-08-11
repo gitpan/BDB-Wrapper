@@ -12,7 +12,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 =head1 NAME
 
@@ -219,8 +219,6 @@ sub create_env(){
   else{
     $Flags=DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL;
   }
-  my $bdb_dir=$bdb;
-  $bdb_dir=~ s!/[^/]+$!!;
   my $lock_flag;
   my $home_dir=$self->get_bdb_home($bdb);
   $home_dir=~ s!\.[^/\.\s]+$!!;
@@ -362,6 +360,9 @@ sub create_write_dbh(){
   else{
     $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}});
   }
+  
+  my $bdb_dir=$op->{'bdb'};
+  $bdb_dir=~ s!/[^/]+$!!;
   
   my $dbh;
   $SIG{ALRM} = sub { die "timeout"};
@@ -607,6 +608,8 @@ sub create_write_hash_ref(){
     $env=$self->create_env({'bdb'=>$bdb});
   }
   
+  my $bdb_dir=$bdb;
+  $bdb_dir=~ s!/[^/]+$!!;
   local $SIG{ALRM} = sub { die "timeout"};
   my %hash;
   eval{
