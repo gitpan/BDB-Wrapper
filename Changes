@@ -1,5 +1,8 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.31 Mon Aug 16 05:00:00
+	- Added record_error($msg) which records error to /tmp/bdb_error.log
+
 0.31 Wed Jul 21 16:47:00 2010
 	- Fixed the bug of rmkdir($bdb_dir) for create_write_dbh
 

@@ -5,6 +5,7 @@ use warnings;
 use BerkeleyDB;
 use Carp;
 use File::Spec;
+use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
@@ -12,7 +13,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.31';
+our $VERSION = '0.32';
 
 =head1 NAME
 
@@ -822,4 +823,31 @@ sub get_bdb_home(){
   my $bdb=File::Spec->rel2abs(shift) || return;;
   $bdb=~ s!\.bdb$!!i;
   return $self->{'lock_root'}.'/bdb_home'.$bdb;
+}
+
+
+
+=head2 record_error
+
+This will record error message to /tmp/bdb_error.log
+
+record_error($error_message);
+
+=cut
+
+sub record_error(){
+  my $self=shift;
+  my $msg=shift || return;
+  if(my $fh=new FileHandle('>> /tmp/bdb_error.log')){
+    my ($in_sec,$in_min,$in_hour,$in_mday,$in_mon,$in_year,$in_wday)=localtime(CORE::time());
+    $in_mon++;
+    $in_year+=1900;
+    $in_mon='0'.$in_mon if($in_mon<10);
+    $in_mday='0'.$in_mday if($in_mday<10);
+    $in_hour='0'.$in_hour if($in_hour<10);
+    $in_min='0'.$in_min if($in_min<10);
+    $in_sec='0'.$in_sec if($in_sec<10);
+    print $fh $in_year.'/'.$in_mon.'/'.$in_mday.' '.$in_hour.':'.$in_min.':'.$in_sec."\t".$msg."\n";
+    $fh->close();
+  }
 }
