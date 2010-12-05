@@ -13,28 +13,19 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 =head1 NAME
 
-BDB::Wrapper Wrapper module for BerkeleyDB.pm
+  BDB::Wrapper Wrapper module for BerkeleyDB.pm
+  This will make it easy to use BerkeleyDB.pm.
+  You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
+  This module is used on http://www.accessup.org/ and is developed based on the requirement.
 
-This will make it easy to use BerkeleyDB.pm.
-
-You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
-
-This module is used on http://www.accessup.org/ and is developed based on the requirement.
-
-
-Attention: If you use this module for the specified Berkeley DB file,
-
-please use this module for all access to the bdb.
-
-By it, you can control lock to the bdb file.
-
-Lock files are created under /tmp/bdb_home.
-
-If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
+  Attention: If you use this module for the specified Berkeley DB file,
+  please use this module for all access to the bdb.
+  By it, you can control lock and strasaction of bdb files.
+  BDB_HOMEs are created under /tmp/bdb_home in default option
 
 =cut
 
@@ -44,86 +35,104 @@ If you set ram 1 in new option, lock files are created under /dev/shm/bdb_home.
 
 =pod
 
-package test_bdb;
+  # Basic Usage
+  package test_bdb;
+  use BDB::Wrapper;
+  my $pro=new test_bdb;
+  $pro->run();
+  sub new(){
+    my $self={};
+    return bless $self;
+  }
 
-use BDB::Wrapper;
+  sub run(){
+    my $self=shift;
+    $self->init_vars();
+    $self->demo();
+  }
 
-my $pro=new test_bdb;
+  sub init_vars(){
+    my $self=shift;
+    $self->{'bdb'}='/tmp/test.bdb';
+    $self->{'bdbw'}=new BDB::Wrapper;
+  }
 
-$pro->run();
-
-sub new(){
-
-  my $self={};
-
-  return bless $self;
-
-}
-
-sub run(){
-
-  my $self=shift;
-
-  $self->init_vars();
-
-  $self->demo();
-
-}
-
-sub init_vars(){
-
-  my $self=shift;
-
-  $self->{'bdb'}='/tmp/test.bdb';
-
-  $self->{'bdbw'}=new BDB::Wrapper;
-}
-
-sub demo(){
-
-  my $self=shift;
-
-  if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
-
-    local $SIG{'INT'};
-
-    local $SIG{'TERM'};
-
-    local $SIG{'QUIT'};
-
-    $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
-
-    if($dbh && $dbh->db_put('name', 'value')==0){
-
-    }
-
-    else{
-
+  sub demo(){
+    my $self=shift;
+    if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
+      local $SIG{'INT'};
+      local $SIG{'TERM'};
+      local $SIG{'QUIT'};
+      $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
+      if($dbh && $dbh->db_put('name', 'value')==0){
+      }
+      else{
+        $dbh->db_close() if $dbh;
+        die 'Failed to put to '.$self->{'bdb'};
+      }
       $dbh->db_close() if $dbh;
-
-      die 'Failed to put to '.$self->{'bdb'};
-
     }
 
-    $dbh->db_close() if $dbh;
-
+    if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
+      my $value;
+      if($dbh->db_get('name', $value)==0){
+        print 'Name='.$name.' value='.$value."\n";
+      }
+      $dbh->db_close();
+    }
   }
 
-  if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
+=cut
 
-    my $value;
+=pod
 
-    if($dbh->db_get('name', $value)==0){
+  # Transaction Usage
+  package transaction_bdb;
+  use BDB::Wrapper;
+  my $pro=new test_bdb;
+  $pro->run();
+  sub new(){
+    my $self={};
+    return bless $self;
+  }
 
-      print 'Name='.$name.' value='.$value."\n";
+  sub run(){
+    my $self=shift;
+    $self->init_vars();
+    $self->demo();
+  }
 
+  sub init_vars(){
+    my $self=shift;
+    $self->{'bdb'}='/tmp/test.bdb';
+    $self->{'bdbw'}=new BDB::Wrapper;
+    $self->{'transaction_dir'}='';
+  }
+
+  sub demo(){
+    my $self=shift;
+    if(my $dbh=$self->{'bdbw'}->create_write_dbh({$self->{'bdb'} , 'transaction'=>$self->{'transaction_dir'}})){
+      local $SIG{'INT'};
+      local $SIG{'TERM'};
+      local $SIG{'QUIT'};
+      $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
+      if($dbh && $dbh->db_put('name', 'value')==0){
+      }
+      else{
+        $dbh->db_close() if $dbh;
+        die 'Failed to put to '.$self->{'bdb'};
+      }
+      $dbh->db_close() if $dbh;
     }
 
-    $dbh->db_close();
-
+    if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
+      my $value;
+      if($dbh->db_get('name', $value)==0){
+        print 'Name='.$name.' value='.$value."\n";
+      }
+      $dbh->db_close();
+    }
   }
-
-}
 
 =cut
 
@@ -131,34 +140,23 @@ sub demo(){
 
 =head2 new
 
-Creates an object of BDB::Wrapper
-
-
-If you set {'ram'=>1}, you can use /dev/shm/bdb_home for storing locking file for BDB instead of /tmp/bdb_home/.
-
-1 is default value.
-
-
-If you set {'no_lock'=>1}, the control of concurrent access will not be used. So the lock files are also not created.
-
-0 is default value.
-
-
-If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
-
-The value can be overwritten by the cache value of create_write_dbh
-
-undef is default value.
-
-
-If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
-
-11 is default value.
-
-
-If you set {'transaction'=>transaction_root_dir}, all dbh object will be created in transaction mode unless you don\'t specify transaction root dir in each method.
-
-11 is default value.
+  Creates an object of BDB::Wrapper
+  
+  If you set {'ram'=>1}, you can use /dev/shm/bdb_home for storing locking file for BDB instead of /tmp/bdb_home/.
+  1 is default value.
+  
+  If you set {'no_lock'=>1}, the control of concurrent access will not be used. So the lock files are also not created.
+  0 is default value.
+  
+  If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
+  The value can be overwritten by the cache value of create_write_dbh
+  undef is default value.
+  
+  If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
+  11 is default value.
+  
+  If you set {'transaction'=>transaction_root_dir}, all dbh object will be created in transaction mode unless you don\'t specify transaction root dir in each method.
+  11 is default value.
 
 =cut
 
@@ -216,11 +214,14 @@ __END__
 
 =head2 create_env
 
-Creates Environment for BerkeleyDB
-
-create_env({'bdb'=>$bdb, 'no_lock='>0(default) or 1, 'cache'=>undef(default) or integer, 'error_log_file'=>undef or $error_log_file, 'transaction'=> 0==undef or $transaction_root_dir});
-
-no_lock and cache will overwrite the value specified in new but used only in this env
+  Creates Environment for BerkeleyDB
+  create_env({'bdb'=>$bdb,
+    'no_lock='>0(default) or 1,
+    'cache'=>undef(default) or integer,
+    'error_log_file'=>undef or $error_log_file,
+    'transaction'=> 0==undef or $transaction_root_dir
+    });
+  no_lock and cache will overwrite the value specified in new but used only in this env
 
 =cut
 
@@ -293,11 +294,9 @@ sub create_env(){
 
 =head2 create_dbh
 
-Not recommened method. Please use create_read_dbh() or create_write_dbh().
-
-Creates database handler for BerkeleyDB
-
-This will be obsolete due to too much simplicity, so please don\'t use.
+  Not recommened method. Please use create_read_dbh() or create_write_dbh().
+  Creates database handler for BerkeleyDB
+  This will be obsolete due to too much simplicity, so please don\'t use.
 
 =cut
 
@@ -310,11 +309,9 @@ sub create_dbh(){
 
 =head2 create_hash_ref
 
-Not recommended method. Please use create_write_dbh().
-
-Creates database handler for BerkeleyDB
-
-This will be obsolete due to too much simplicity, so please don\'t use.
+  Not recommended method. Please use create_write_dbh().
+  Creates database handler for BerkeleyDB
+  This will be obsolete due to too much simplicity, so please don\'t use.
 
 =cut
 
@@ -327,25 +324,34 @@ sub create_hash_ref(){
 
 =head2 create_write_dbh
 
-This returns database handler for writing or ($database_handler, $env) depeinding on the request.
+  This returns database handler for writing or ($database_handler, $env) depeinding on the request.
+  $self->create_write_dbh({'bdb'=>$bdb,
+    'cache'=>undef(default) or integer,
+    'hash'=>0 or 1,
+    'dont_try'=>0 or 1,
+    'no_lock'=>0(default) or 1,
+    'sort_code_ref'=>$sort_code_reference,
+    'sort' or 'sort_num'=>0 or 1,
+    'transaction'=> 0==undef or $transaction_root_dir,
+    'reverse_cmp'=>0 or 1,
+    'reverse' or 'reverse_num'=>0 or 1
+    });
 
-$self->create_write_dbh({'bdb'=>$bdb, 'cache'=>undef(default) or integer, 'hash'=>0 or 1, 'dont_try'=>0 or 1,'no_lock'=>0(default) or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'transaction'=> 0==undef or $transaction_root_dir, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+  In the default mode, BDB file will be created as Btree;
 
-In the default mode, BDB file will be created as Btree;
+  If you set 'hash' 1, Hash BDB will be created.
 
-If you set 'hash' 1, Hash BDB will be created.
+  If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
 
-If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
+  If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
+  If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
+  If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
-If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+  If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
-If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
-
-If you set transaction for storing transaction log, transaction will be used and ($bdb_handler, $transaction_handler) will be returned.
+  If you set transaction for storing transaction log, transaction will be used and ($bdb_handler, $transaction_handler) will be returned.
 
 =cut
 
@@ -458,23 +464,32 @@ sub create_write_dbh(){
 
 =head2 create_read_dbh
 
-This returns database handler for reading or ($database_handler, $env) depeinding on the request.
+  This returns database handler for reading or ($database_handler, $env) depeinding on the request.
 
-$self->create_read_dbh({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1, 'transaction'=> 0==undef or $transaction_root_dir});
+  $self->create_read_dbh({
+    'bdb'=>$bdb,
+    'hash'=>0 or 1,
+    'dont_try'=>0 or 1,
+    'sort_code_ref'=>$sort_code_reference,
+    'sort' or 'sort_num'=>0 or 1,
+    'reverse_cmp'=>0 or 1,
+    'reverse' or 'reverse_num'=>0 or 1,
+    'transaction'=> 0==undef or $transaction_root_dir
+    });
 
-In the default mode, BDB file will be created as Btree;
+  In the default mode, BDB file will be created as Btree;
 
-If you set 'hash' 1, Hash BDB will be created.
+  If you set 'hash' 1, Hash BDB will be created.
 
-If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
+  If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
 
-If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
+  If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
+  If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
+  If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
-If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+  If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 =cut
 
@@ -593,30 +608,31 @@ sub create_read_dbh(){
 
 =head2 create_write_hash_ref
 
-Not recommended method. Please use create_write_dbh() instead of this method.
+  Not recommended method. Please use create_write_dbh() instead of this method.
+  This will creates hash for writing.
 
-This will creates hash for writing.
+  $self->create_write_hash_ref({'bdb'=>$bdb,
+    'hash'=>0 or 1,
+    'dont_try'=>0 or 1,
+    'sort_code_ref'=>$sort_code_reference,
+    'sort' or 'sort_num'=>0 or 1,
+    'reverse_cmp'=>0 or 1,
+    'reverse' or 'reverse_num'=>0 or 1
+    });
 
-$self->create_write_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference,  'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+  In the default mode, BDB file will be created as Btree.
 
-OR
+  If you set 'hash' 1, Hash BDB will be created.
 
-$self->create_write_hash_ref({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference,  'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+  If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
 
+  If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-In the default mode, BDB file will be created as Btree;
+  If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set 'hash' 1, Hash BDB will be created.
+  If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
-If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
-
-If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
-
-If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
-
-If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
-
-If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+  If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 =cut
 
@@ -718,29 +734,32 @@ sub create_write_hash_ref(){
 
 =head2 create_read_hash_ref
 
-Not recommended method. Please use create_read_dbh and cursor().
+  Not recommended method. Please use create_read_dbh and cursor().
+  This will creates database handler for reading.
 
-This will creates database handler for reading.
+  $self->create_read_hash_ref({
+    'bdb'=>$bdb,
+    'hash'=>0 or 1,
+    'dont_try'=>0 or 1,
+    'sort_code_ref'=>$sort_code_reference,
+    'sort' or 'sort_num'=>0 or 1,
+    'reverse_cmp'=>0 or 1,
+    'reverse' or 'reverse_num'=>0 or 1
+    });
 
-$self->create_read_hash_ref($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+  In the default mode, BDB file will be created as Btree.
 
-OR
+  If you set 'hash' 1, Hash BDB will be created.
 
-$self->create_read_hash_ref({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+  If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
 
-In the default mode, BDB file will be created as Btree;
+  If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
 
-If you set 'hash' 1, Hash BDB will be created.
+  If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
 
-If you set 'dont_try' 1, this module won\'t try to unlock BDB if it detects the situation in which deadlock may be occuring.
+  If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
-If you set sort_code_ref some code reference, you can set subroutine for sorting for Btree.
-
-If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_ref.
-
-If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
-
-If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+  If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
 =cut
 
@@ -837,7 +856,14 @@ sub create_read_hash_ref(){
   return \%hash;
 }
 
-# Code from CGI::Accessup;
+=head2 rmkdir
+
+  Code from CGI::Accessup.
+  This creates the specified directory recursively.
+
+  rmkdir($dir);
+
+=cut
 sub rmkdir(){
   my $self=shift;
   my $path=shift;
@@ -870,11 +896,17 @@ sub rmkdir(){
 
 =head2 get_bdb_home
 
-This will return bdb_home.
+  This will return bdb_home.
+  You may need the information for recovery and so on.
 
-You may need the information for recovery and so on.
+  get bdb_home({
+    'bdb'=>$bdb,
+    'transaction'=>$transaction
+    });
 
-get_bdb_home($BDB);
+  OR
+
+  get_bdb_home($bdb);
 
 =cut
 
@@ -914,9 +946,16 @@ sub get_bdb_home(){
 
 =head2 clear_bdb_home
 
-This will clear bdb_home.
+  This will clear bdb_home.
 
-get_bdb_home({'bdb'=>$bdb, 'transaction' => 0==undef or $transaction_root_dir});
+  clear_bdb_home({
+    'bdb'=>$bdb,
+    'transaction' => 0==undef or $transaction_root_dir
+    });
+
+  OR
+
+  clear_bdb_home($bdb);
 
 =cut
 
@@ -965,13 +1004,16 @@ sub clear_bdb_home(){
 
 =head2 record_error
 
-This will record error message to /tmp/bdb_error.log if you don\'t specify error_log_file
+  This will record error message to /tmp/bdb_error.log if you don\'t specify error_log_file
 
-record_error({'msg'=>$error_message, 'error_log_file'=>$error_log_file);
+  record_error({
+    'msg'=>$error_message,
+    'error_log_file'=>$error_log_file
+    });
 
-OR
+  OR
 
-record_error($error_msg)
+  record_error($error_msg)
 
 =cut
 
