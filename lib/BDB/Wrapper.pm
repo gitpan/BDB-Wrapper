@@ -13,11 +13,12 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.34';
+our $VERSION = '0.35';
 
 =head1 NAME
 
-  BDB::Wrapper Wrapper module for BerkeleyDB.pm
+  BDB::Wrapper
+  Wrapper module for BerkeleyDB.pm for easy usage of it.
   This will make it easy to use BerkeleyDB.pm.
   You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
   This module is used on http://www.accessup.org/ and is developed based on the requirement.
@@ -25,17 +26,19 @@ our $VERSION = '0.34';
   Attention: If you use this module for the specified Berkeley DB file,
   please use this module for all access to the bdb.
   By it, you can control lock and strasaction of bdb files.
-  BDB_HOMEs are created under /tmp/bdb_home in default option
+  BDB_HOMEs are created under /tmp/bdb_home in default option.
+
+  Japanese: http://www.accessup.org/pj/6_B4C9CDFDBFCDA4B5A4F3/13/list.html
+  English: http://en.accessup.org/pe/Administrator/19/list.html
 
 =cut
 
-=head1 Example
+=head1 Example of basic usage
 
 =cut
 
 =pod
 
-  # Basic Usage
   package test_bdb;
   use BDB::Wrapper;
   my $pro=new test_bdb;
@@ -60,10 +63,13 @@ our $VERSION = '0.34';
   sub demo(){
     my $self=shift;
     if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
+      ###############
+      # This is not must job but it will help to avoid unexpected result caused by unexpected process killking
       local $SIG{'INT'};
       local $SIG{'TERM'};
       local $SIG{'QUIT'};
       $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
+      ###########
       if($dbh && $dbh->db_put('name', 'value')==0){
       }
       else{
@@ -84,12 +90,20 @@ our $VERSION = '0.34';
 
 =cut
 
+=head1 Example of using transaction
+
+=cut
+
 =pod
 
   # Transaction Usage
-  package transaction_bdb;
+  #!/usr/bin/perl -w
+  package bdb_write;
   use BDB::Wrapper;
-  my $pro=new test_bdb;
+  use BerkeleyDB;
+  use FileHandle;
+
+  my $pro = new bdb_write;
   $pro->run();
   sub new(){
     my $self={};
@@ -98,40 +112,26 @@ our $VERSION = '0.34';
 
   sub run(){
     my $self=shift;
-    $self->init_vars();
-    $self->demo();
-  }
-
-  sub init_vars(){
-    my $self=shift;
-    $self->{'bdb'}='/tmp/test.bdb';
     $self->{'bdbw'}=new BDB::Wrapper;
-    $self->{'transaction_dir'}='';
-  }
-
-  sub demo(){
-    my $self=shift;
-    if(my $dbh=$self->{'bdbw'}->create_write_dbh({$self->{'bdb'} , 'transaction'=>$self->{'transaction_dir'}})){
-      local $SIG{'INT'};
-      local $SIG{'TERM'};
-      local $SIG{'QUIT'};
-      $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
-      if($dbh && $dbh->db_put('name', 'value')==0){
+    my ($dbh, $env)=$self->{'bdbw'}->create_write_dbh({'bdb'=>'/tmp/bdb_write.bdb', 'transaction'=>1});
+    my $txn = $env->txn_begin(undef, DB_TXN_NOWAIT);
+  
+    my $cnt=0;
+    for($i=0;$i<1000;$i++){
+      $dbh->db_put(rand(), $i*rand());
+      $cnt=$i;
+      if($cnt && $cnt%100==0){
+        $txn->txn_commit();
+        $txn = $env->txn_begin(undef, DB_TXN_NOWAIT);
       }
-      else{
-        $dbh->db_close() if $dbh;
-        die 'Failed to put to '.$self->{'bdb'};
-      }
-      $dbh->db_close() if $dbh;
     }
 
-    if(my $dbh=$self->{'bdbw'}->create_read_dbh($self->{'bdb'})){
-      my $value;
-      if($dbh->db_get('name', $value)==0){
-        print 'Name='.$name.' value='.$value."\n";
-      }
-      $dbh->db_close();
-    }
+    $txn->txn_commit();
+    $env->txn_checkpoint(1,1,0);
+    $dbh->db_close();
+    chmod 0666, '/tmp/bdb_write.bdb';
+    print "Content-type:text/html\n\n";
+    print $cnt."\n";
   }
 
 =cut
@@ -215,12 +215,14 @@ __END__
 =head2 create_env
 
   Creates Environment for BerkeleyDB
+
   create_env({'bdb'=>$bdb,
     'no_lock='>0(default) or 1,
     'cache'=>undef(default) or integer,
     'error_log_file'=>undef or $error_log_file,
     'transaction'=> 0==undef or $transaction_root_dir
     });
+
   no_lock and cache will overwrite the value specified in new but used only in this env
 
 =cut
@@ -325,6 +327,7 @@ sub create_hash_ref(){
 =head2 create_write_dbh
 
   This returns database handler for writing or ($database_handler, $env) depeinding on the request.
+
   $self->create_write_dbh({'bdb'=>$bdb,
     'cache'=>undef(default) or integer,
     'hash'=>0 or 1,

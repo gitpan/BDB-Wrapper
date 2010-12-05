@@ -1,5 +1,11 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.35 Sun Dec 05 23:50:00
+	- Updated document
+
+0.34 Sun Dec 05 22:00:00
+	- Updated document
+
 0.33 Sun Dec 05 19:00:00
 	- Added clear_bdb_home()
 	- Added support of transaction
