@@ -8,7 +8,6 @@
 use Test;
 BEGIN { plan tests => 58 };
 use BDB::Wrapper;
-use BerkeleyDB;
 use File::Spec;
 ok(1); # If we made it this far, we're ok.
 
