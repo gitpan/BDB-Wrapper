@@ -1,5 +1,9 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.33 Sun Dec 05 19:00:00
+	- Added clear_bdb_home()
+	- Added support of transaction
+
 0.31 Mon Aug 16 05:00:00
 	- Added record_error($msg) which records error to /tmp/bdb_error.log
 

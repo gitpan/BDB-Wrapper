@@ -6,7 +6,7 @@
 # change 'tests => 1' to 'tests => last_test_to_print';
 
 use Test;
-BEGIN { plan tests => 50 };
+BEGIN { plan tests => 58 };
 use BDB::Wrapper;
 use BerkeleyDB;
 use File::Spec;
@@ -176,3 +176,27 @@ foreach my $bdb (keys %bdbs){
 	}
 	unlink $bdb;
 }
+
+my $transaction_root_dir='/tmp/txn';
+my $txn1;
+my $trbdbw1=new BDB::Wrapper;
+my $trbdb1='/tmp/transaction_test.bdb';
+my ($trdbh1, $trenv1)=$trbdbw1->create_write_dbh({'bdb'=>$trbdb1, 'transaction'=>$transaction_root_dir});
+ok($txn1 = $trenv1->txn_begin(undef, DB_TXN_NOWAIT));
+ok($trdbh1->db_put('key', 'value')==0);
+$txn1->txn_commit();
+$trenv1->txn_checkpoint(1,1,0);
+$trdbh1->db_close();
+
+($trdbh1, $trenv1)=$trbdbw1->create_read_dbh({'bdb'=>$trbdb1, 'transaction'=>$transaction_root_dir});
+my $trvalue='';
+ok($trdbh1->db_get('key', $trvalue)==0);
+ok($trvalue eq 'value');
+$trdbh1->db_close();
+my $trbdbh='';
+my $trbdb_home='';
+ok($trbdb_home=$trbdbw1->get_bdb_home({'bdb'=>$trbdb1, 'transaction'=>$transaction_root_dir}));
+ok($trbdb_home=~ m!^$transaction_root_dir!);
+ok(-d $trbdb_home);
+$trbdbw1->clear_bdb_home({'bdb'=>$trbdb1, 'transaction'=>$transaction_root_dir});
+ok(!(-d $trbdb_home));

@@ -13,7 +13,7 @@ our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw();
-our $VERSION = '0.32';
+our $VERSION = '0.33';
 
 =head1 NAME
 
@@ -133,13 +133,16 @@ sub demo(){
 
 Creates an object of BDB::Wrapper
 
+
 If you set {'ram'=>1}, you can use /dev/shm/bdb_home for storing locking file for BDB instead of /tmp/bdb_home/.
 
 1 is default value.
 
+
 If you set {'no_lock'=>1}, the control of concurrent access will not be used. So the lock files are also not created.
 
 0 is default value.
+
 
 If you set {'cache'=>$CACHE_SIZE}, you can allocate cache memory of the specified bytes for using bdb files.
 
@@ -147,7 +150,13 @@ The value can be overwritten by the cache value of create_write_dbh
 
 undef is default value.
 
+
 If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
+
+11 is default value.
+
+
+If you set {'transaction'=>transaction_root_dir}, all dbh object will be created in transaction mode unless you don\'t specify transaction root dir in each method.
 
 11 is default value.
 
@@ -182,6 +191,15 @@ sub new(){
     elsif($key eq 'wait'){
       $self->{'wait'}=$value;
     }
+    elsif($key eq 'transaction'){
+      $self->{'transaction'}=$value;
+      if($self->{'transaction'} && $self->{'transaction'}!~ m!^/.!){
+        croak("transaction parameter must be valid directory name.");
+      }
+      if($self->{'transaction'}){
+        $self->{'lock_root'}=$self->{'transaction'};
+      }
+    }
     else{
       my $error='Invalid option: key='.$key;
       if($value){
@@ -200,7 +218,7 @@ __END__
 
 Creates Environment for BerkeleyDB
 
-create_env({'bdb'=>$bdb, 'no_lock='>0(default) or 1, 'cache'=>undef(default) or integer});
+create_env({'bdb'=>$bdb, 'no_lock='>0(default) or 1, 'cache'=>undef(default) or integer, 'error_log_file'=>undef or $error_log_file, 'transaction'=> 0==undef or $transaction_root_dir});
 
 no_lock and cache will overwrite the value specified in new but used only in this env
 
@@ -211,17 +229,36 @@ sub create_env(){
   my $op=shift;
   my $bdb=File::Spec->rel2abs($op->{'bdb'}) || return;
   my $no_lock=$op->{'no_lock'} || $self->{'no_lock'} || 0;
+  my $transaction=$undef;
+  $self->{'error_log_file'}=$op->{'errore_log_file'};
+  if(exists($op->{'transaction'})){
+    $transaction=$op->{'transaction'};
+  }
+  else{
+    $transaction=$self->{'transaction'};
+  }
+  if($transaction && $transaction!~ m!^/.!){
+    croak("transaction parameter must be valid directory name.");
+  }
   my $cache=$op->{'cache'} || $self->{'Cachesize'} || undef;
   my $env;
   my $Flags;
-  if($no_lock){
+  if($transaction){
+    if($transaction=~ m!^/.!){
+      $Flags=DB_INIT_LOCK |DB_INIT_LOG | DB_INIT_TXN | DB_CREATE | DB_INIT_MPOOL;
+    }
+    else{
+      croak("transaction parameter must be valid directory name.");
+    }
+  }
+  elsif($no_lock){
     $Flags=DB_CREATE | DB_INIT_MPOOL;
   }
   else{
     $Flags=DB_INIT_CDB | DB_CREATE | DB_INIT_MPOOL;
   }
   my $lock_flag;
-  my $home_dir=$self->get_bdb_home($bdb);
+  my $home_dir=$self->get_bdb_home({'bdb'=>$bdb, 'transaction'=>$transaction});
   $home_dir=~ s!\.[^/\.\s]+$!!;
   unless(-d $home_dir){
     $self->rmkdir($home_dir);
@@ -233,14 +270,18 @@ sub create_env(){
       -Cachesize => $cache,
       -Flags => $Flags,
       -Home  => $home_dir,
-      -LockDetect => $lock_flag
+      -LockDetect => $lock_flag,
+      -Mode => 0666, 
+      -ErrFile => $self->{'error_log_file'}
       };
   }
   else{
     $env = new BerkeleyDB::Env {
       -Flags => $Flags,
       -Home  => $home_dir,
-      -LockDetect => $lock_flag
+      -LockDetect => $lock_flag,
+      -Mode => 0666, 
+      -ErrFile => $self->{'error_log_file'}
       };
   }
   # DB_CREATE is necessary for ccdb
@@ -286,17 +327,9 @@ sub create_hash_ref(){
 
 =head2 create_write_dbh
 
-This will creates database handler for writing.
+This returns database handler for writing or ($database_handler, $env) depeinding on the request.
 
-Not recommended:
-
-$self->create_write_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
-
-OR
-
-Recommended:
-
-$self->create_write_dbh({'bdb'=>$bdb, 'cache'=>undef(default) or integer, 'hash'=>0 or 1, 'dont_try'=>0 or 1,'no_lock'=>0(default) or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+$self->create_write_dbh({'bdb'=>$bdb, 'cache'=>undef(default) or integer, 'hash'=>0 or 1, 'dont_try'=>0 or 1,'no_lock'=>0(default) or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'transaction'=> 0==undef or $transaction_root_dir, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -311,6 +344,8 @@ If you set sort or sort_num 1, you can use sub {$_[0] <=> $_[1]} for sort_code_r
 If you set reverse or reverse_num 1, you can use sub {$_[1] <=> $_[0]} for sort_code_ref.
 
 If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
+
+If you set transaction for storing transaction log, transaction will be used and ($bdb_handler, $transaction_handler) will be returned.
 
 =cut
 
@@ -328,13 +363,23 @@ sub create_write_dbh(){
   }
   
   $op->{'bdb'}=File::Spec->rel2abs($op->{'bdb'});
-  
+
+  my $transaction = undef;
   my $hash=0;
   my $dont_try=0;
   my $sort_code_ref=undef;
   if(ref($op) eq 'HASH'){
     $hash=$op->{'hash'} || 0;
     $dont_try=$op->{'dont_try'} || 0;
+    if(exists($op->{'transaction'})){
+      $transaction = $op->{'transaction'};
+    }
+    else{
+      $transaction = $self->{'transaction'};
+    }
+    if($transaction && $transaction!~ m!^/.!){
+      croak("transaction parameter must be valid directory name.");
+    }
     if($op->{'reverse'} || $op->{'reverse_num'}){
       $sort_code_ref=sub {$_[1] <=> $_[0]};
     }
@@ -354,18 +399,20 @@ sub create_write_dbh(){
     $sort_code_ref=shift;
   }
   my $env;
-
+  
   if($op->{'no_env'}){
     $env=undef;
   }
   else{
-    $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}});
+    $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}, 'transaction'=>$transaction});
   }
   
   my $bdb_dir=$op->{'bdb'};
   $bdb_dir=~ s!/[^/]+$!!;
   
   my $dbh;
+  
+  
   $SIG{ALRM} = sub { die "timeout"};
   eval{
     alarm($self->{'wait'});
@@ -390,38 +437,30 @@ sub create_write_dbh(){
     alarm(0);
   };
   
-  unless($dont_try){
-    if($@){
-      if($@ =~ /timeout/){
-        $op->{'dont_try'}=1;
-        $dont_try=1;
-        my $home_dir=$self->get_bdb_home($op->{'bdb'});
-        system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
-        if(ref($op) eq 'HASH'){
-          return $self->create_write_dbh($op->{'bdb'}, $op);
-        }
-        else{
-          return $self->create_write_dbh($op->{'bdb'}, $hash, $dont_try, $sort_code_ref);
-        }
-      }
-      else{
-        alarm(0);
-      }
+  if(!$dbh){
+    {
+      local $|=0;
+      print "Content-type:text/html\n\n";
+      print "Failed to create write dbh for ".$op->{'bdb'};
+      exit;
     }
   }
-  return $dbh;
+  else{
+    if(wantarray){
+      return ($dbh, $env);
+    }
+    else{
+      return $dbh;
+    }
+  }
 }
 
 
 =head2 create_read_dbh
 
-This will creates database handler for reading.
+This returns database handler for reading or ($database_handler, $env) depeinding on the request.
 
-$self->create_read_dbh($bdb, {'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
-
-OR
-
-$self->create_read_dbh({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1});
+$self->create_read_dbh({'bdb'=>$bdb, 'hash'=>0 or 1, 'dont_try'=>0 or 1, 'sort_code_ref'=>$sort_code_reference, 'sort' or 'sort_num'=>0 or 1, 'reverse_cmp'=>0 or 1, 'reverse' or 'reverse_num'=>0 or 1, 'transaction'=> 0==undef or $transaction_root_dir});
 
 In the default mode, BDB file will be created as Btree;
 
@@ -443,6 +482,7 @@ sub create_read_dbh(){
   my $self=shift;
   my $bdb=shift;
   my $op='';
+  my $transaction=undef;
   if($bdb && ref($bdb) eq 'HASH'){
     $op=$bdb;
     $bdb=$op->{'bdb'};
@@ -457,6 +497,16 @@ sub create_read_dbh(){
   my $dont_try=0;
   my $sort_code_ref=undef;
   if(ref($op) eq 'HASH'){
+    if(exists($op->{'transaction'})){
+      $transaction=$op->{'transaction'};
+    }
+    else{
+      $transaction=$self->{'transaction'};
+    }
+    if($transaction && $transaction!~ m!^/.!){
+      croak("transaction parameter must be valid directory name.");
+    }
+    
     $hash=$op->{'hash'} || 0;
     $dont_try=$op->{'dont_try'} || 0;
     if($op->{'reverse'} || $op->{'reverse_num'}){
@@ -468,7 +518,7 @@ sub create_read_dbh(){
     elsif($op->{'sort'} || $op->{'sort_num'}){
       $sort_code_ref=sub {$_[0] <=> $_[1]};
     }
-    else{
+    elsif($op->{'sort_code_ref'}){
       $sort_code_ref=$op->{'sort_code_ref'};
     }
   }
@@ -479,8 +529,8 @@ sub create_read_dbh(){
   }
   
   my $env='';
-  if($op->{'use_env'}){
-    $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}});
+  if($op->{'use_env'} || $transaction){
+    $env=$self->create_env({'bdb'=>$op->{'bdb'}, 'cache'=>$op->{'cache'}, 'no_lock'=>$op->{'no_lock'}, 'transaction'=>$transaction});
   }
   else{
     $env=undef;
@@ -513,8 +563,7 @@ sub create_read_dbh(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$self->get_bdb_home($op->{'bdb'});
-        system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
+        $self->clear_bdb_home({'bdb'=>$op->{'bdb'}, 'transaction'=>$transaction});
         if(ref($op) eq 'HASH'){
           return $self->create_read_dbh($op->{'bdb'}, $op);
         }
@@ -527,13 +576,24 @@ sub create_read_dbh(){
       }
     }
   }
-  return $dbh;
+    
+  if(!$dbh){
+    return;
+  }
+  else{
+    if(wantarray){
+      return ($dbh, $env);
+    }
+    else{
+      return $dbh;
+    }
+  }
 }
 
 
 =head2 create_write_hash_ref
 
-Not recommended method. Please use create_write_dbh().
+Not recommended method. Please use create_write_dbh() instead of this method.
 
 This will creates hash for writing.
 
@@ -639,7 +699,7 @@ sub create_write_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$self->get_bdb_home($bdb);
+        my $home_dir=$self->get_bdb_home({'bdb'=>$bdb});
         system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
           return $self->create_write_hash_ref($bdb, $op);
@@ -820,25 +880,123 @@ get_bdb_home($BDB);
 
 sub get_bdb_home(){
   my $self=shift;
-  my $bdb=File::Spec->rel2abs(shift) || return;;
-  $bdb=~ s!\.bdb$!!i;
-  return $self->{'lock_root'}.'/bdb_home'.$bdb;
+  my $op=shift;
+  my $bdb='';
+  my $transaction=undef;
+  my $lock_root=$self->{'lock_root'};
+  if($op && ref($op) eq 'HASH'){
+    $bdb=$op->{'bdb'} || return;
+    if(exists($op->{'transaction'})){
+      $transaction=$op->{'transaction'};
+    }
+    else{
+      $transaction=$self->{'transaction'};
+    }
+  }
+  else{
+    $bdb=File::Spec->rel2abs($op) || return;
+    $transaction=$self->{'transaction'};
+  }
+  if($transaction && $transaction!~ m!^/.!){
+    croak("transaction parameter must be valid directory name.");
+  }
+  if($transaction){
+    $lock_root=$transaction;
+  }
+  if($bdb=~ s!\.bdb$!!i){
+    return $lock_root.'/bdb_home'.$bdb;
+  }
+  else{
+    croak("BDB file's name must be ended with .bdb for verification.");
+  }
 }
 
 
+=head2 clear_bdb_home
+
+This will clear bdb_home.
+
+get_bdb_home({'bdb'=>$bdb, 'transaction' => 0==undef or $transaction_root_dir});
+
+=cut
+
+sub clear_bdb_home(){
+  my $self=shift;
+  my $op=shift;
+  my $bdb='';
+  my $transaction=undef;
+  my $lock_root=$self->{'lock_root'};
+  if($op && ref($op) eq 'HASH'){
+    $bdb=$op->{'bdb'} || return;
+    if(exists($op->{'transaction'})){
+      $transaction=$op->{'transaction'};
+    }
+    else{
+      $transaction=$self->{'transaction'};
+    }
+    if($transaction && $transaction!~ m!^/.!){
+      croak("transaction parameter must be valid directory name.");
+    }
+    if($transaction){
+      $lock_root=$transaction;
+    }
+  }
+  else{
+    $bdb=File::Spec->rel2abs($op) || return;
+  }
+  if($bdb=~ s!\.bdb$!!i){
+    my $dir=$lock_root.'/bdb_home'.$bdb;
+    my $dh;
+    opendir($dh, $dir);
+    if($dh){
+      while (my $file = readdir $dh){
+        if(-f $dir.'/'.$file){
+          unlink $dir.'/'.$file;
+        }
+      }
+      closedir $dh;
+      rmdir $dir;
+    }
+  }
+  else{
+    croak("BDB file's name must be ended with .bdbfor verification.");
+  }
+}
 
 =head2 record_error
 
-This will record error message to /tmp/bdb_error.log
+This will record error message to /tmp/bdb_error.log if you don\'t specify error_log_file
 
-record_error($error_message);
+record_error({'msg'=>$error_message, 'error_log_file'=>$error_log_file);
+
+OR
+
+record_error($error_msg)
 
 =cut
 
 sub record_error(){
   my $self=shift;
-  my $msg=shift || return;
-  if(my $fh=new FileHandle('>> /tmp/bdb_error.log')){
+  my $op=shift || return;
+  my $msg='';
+  my $error_log_file='';
+  
+  if($op && ref($op) eq 'HASH'){
+    $msg=$op->{'msg'};
+    $error_log_file=$op->{'error_log_file'};
+  }
+  else{
+    $msg=$op;
+  }
+  if(!$error_log_file){
+    if($self->{'error_log_file'}){
+      $error_log_file=$self->{'error_log_file'};
+    }
+    else{
+      $error_log_file='/tmp/bdb_error.log';
+    }
+  }
+  if(my $fh=new FileHandle('>> '.$error_log_file)){
     my ($in_sec,$in_min,$in_hour,$in_mday,$in_mon,$in_year,$in_wday)=localtime(CORE::time());
     $in_mon++;
     $in_year+=1900;
