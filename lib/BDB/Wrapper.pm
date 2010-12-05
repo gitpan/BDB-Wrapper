@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.36';
+our $VERSION = '0.37';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -679,7 +679,6 @@ our @EXPORT = qw(
   package bdb_write;
   use strict;
   use BDB::Wrapper;
-  use BerkeleyDB; # For Constant value
 
   my $pro = new bdb_write;
   $pro->run();
