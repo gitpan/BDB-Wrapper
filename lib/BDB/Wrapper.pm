@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.37';
+our $VERSION = '0.38';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -690,12 +690,13 @@ our @EXPORT = qw(
   sub run(){
     my $self=shift;
     $self->{'bdbw'}=new BDB::Wrapper;
-    my ($dbh, $env)=$self->{'bdbw'}->create_write_dbh({'bdb'=>'/tmp/bdb_write.bdb', 'transaction'=>1});
+    # If you want to create bdb_home with transaction log under /home/txn_data/bdb_home/$BDBFILENAME/
+    my ($dbh, $env)=$self->{'bdbw'}->create_write_dbh({'bdb'=>'/tmp/bdb_write.bdb', 'transaction'=>'/home/txn_data'});
     my $txn = $env->txn_begin(undef, DB_TXN_NOWAIT);
   
     my $cnt=0;
     for($i=0;$i<1000;$i++){
-      $dbh->db_put(rand(), $i*rand());
+      $dbh->db_put($i, $i*rand());
       $cnt=$i;
       if($cnt && $cnt%100==0){
         $txn->txn_commit();
@@ -755,7 +756,6 @@ sub new(){
       $self->{'Cachesize'}=$value if(defined($value));
     }
     elsif($key eq 'Cachesize'){
-      # Cachesize eq undef ‚Í“®ì‚ÌŽd•û‚ª•s–¾‚È‚Ì‚Å
       $self->{'Cachesize'}=$value if(defined($value));
     }
     elsif($key eq 'no_lock'){
