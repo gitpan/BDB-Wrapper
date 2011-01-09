@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.38';
+our $VERSION = '0.40';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -1341,6 +1341,8 @@ sub create_write_hash_ref(){
 
   If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
+  If you set use_env 1, you can use environment for this method.
+
 =cut
 
 sub create_read_hash_ref(){
@@ -1387,11 +1389,11 @@ sub create_read_hash_ref(){
   }
   
   my $env='';
-  if($self->{'op'}->{'no_env'}){
-    $env=undef;
+  if($op->{'use_env'}){
+    $env=$self->create_env({'bdb'=>$bdb});
   }
   else{
-    $env=$self->create_env({'bdb'=>$bdb});
+    $env=undef;
   }
   
   my %hash;
@@ -1515,12 +1517,8 @@ sub get_bdb_home(){
   if($transaction){
     $lock_root=$transaction;
   }
-  if($bdb=~ s!\.bdb$!!i){
-    return $lock_root.'/bdb_home'.$bdb;
-  }
-  else{
-    croak("BDB file's name must be ended with .bdb for verification.");
-  }
+  $bdb=~ s!\.bdb$!!i;
+  return $lock_root.'/bdb_home'.$bdb;
 }
 
 
@@ -1563,22 +1561,18 @@ sub clear_bdb_home(){
   else{
     $bdb=File::Spec->rel2abs($op) || return;
   }
-  if($bdb=~ s!\.bdb$!!i){
-    my $dir=$lock_root.'/bdb_home'.$bdb;
-    my $dh;
-    opendir($dh, $dir);
-    if($dh){
-      while (my $file = readdir $dh){
-        if(-f $dir.'/'.$file){
-          unlink $dir.'/'.$file;
-        }
+  $bdb=~ s!\.bdb$!!i;
+  my $dir=$lock_root.'/bdb_home'.$bdb;
+  my $dh;
+  opendir($dh, $dir);
+  if($dh){
+    while (my $file = readdir $dh){
+      if(-f $dir.'/'.$file){
+        unlink $dir.'/'.$file;
       }
-      closedir $dh;
-      rmdir $dir;
     }
-  }
-  else{
-    croak("BDB file's name must be ended with .bdbfor verification.");
+    closedir $dh;
+    rmdir $dir;
   }
 }
 

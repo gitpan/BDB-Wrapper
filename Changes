@@ -1,5 +1,11 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.40 Sun Jan 09 21:52:00
+	- Adjust option of create_read_hash_ref to create_read_dbh
+
+0.39 Tue Dec 06 03:10:00
+	- Made this available for files without .bdb
+
 0.38 Sun Dec 06 03:55:00
 	- Updated document
 
