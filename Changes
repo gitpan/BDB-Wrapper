@@ -1,5 +1,11 @@
 Revision history for Perl extension BDB::Wrapper.
 
+0.42 Wed Jan 12 06:50:00
+	- Improved how to use wait limitation
+
+0.41 Tue Jan 11 01:50:00
+	- Added error explanation
+
 0.40 Sun Jan 09 21:52:00
 	- Adjust option of create_read_hash_ref to create_read_dbh
 

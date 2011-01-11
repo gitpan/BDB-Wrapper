@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.40';
+our $VERSION = '0.42';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -745,7 +745,7 @@ sub new(){
   $self->{'lock_root'}='/tmp';
   $self->{'no_lock'}=0;
   $self->{'Flags'}='';
-  $self->{'wait'}= 11;
+  $self->{'wait'}= 22;
   while(my ($key, $value)=each %{$op_ref}){
     if($key eq 'ram'){
       if($value){
@@ -998,10 +998,7 @@ sub create_write_dbh(){
   
   my $dbh;
   
-  
-  $SIG{ALRM} = sub { die "timeout"};
-  eval{
-    alarm($self->{'wait'});
+  if($no_lock){
     $self->rmkdir($bdb_dir);
     if($hash){
       $dbh =new BerkeleyDB::Hash {
@@ -1020,14 +1017,60 @@ sub create_write_dbh(){
         -Compare => $sort_code_ref
         };
     }
-    alarm(0);
-  };
+  }
+  else{
+    $SIG{ALRM} = sub { die "timeout"};
+    eval{
+      alarm($self->{'wait'});
+      $self->rmkdir($bdb_dir);
+      if($hash){
+        $dbh =new BerkeleyDB::Hash {
+          -Filename => $op->{'bdb'},
+          -Flags => DB_CREATE,
+          -Mode => 0666,
+          -Env => $env
+          };
+      }
+      else{
+        $dbh =new BerkeleyDB::Btree {
+          -Filename => $op->{'bdb'},
+          -Flags => DB_CREATE,
+          -Mode => 0666,
+          -Env => $env,
+          -Compare => $sort_code_ref
+          };
+      }
+      alarm(0);
+    };
+
+    unless($dont_try){
+      if($@){
+        if($@ =~ /timeout/){
+          $op->{'dont_try'}=1;
+          $dont_try=1;
+          my $home_dir=$self->get_bdb_home({'bdb'=>$bdb});
+          system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)! && -d $home_dir);
+          if(ref($op) eq 'HASH'){
+            $op->{'dont_try'}=1;
+            return $self->create_write_dbh($op);
+          }
+          else{
+            return $self->create_write_dbh($bdb, $dont_try, $sort_code_ref);
+          }
+        }
+        else{
+          alarm(0);
+        }
+      }
+    }
+  }
   
   if(!$dbh){
     {
       local $|=0;
-      print "Content-type:text/html\n\n";
-      print "Failed to create write dbh for ".$op->{'bdb'};
+      print "Content-type:text/html\n\nFailed to create write dbh for ";
+      print $op->{'bdb'}.'<br />'."\n";
+      print "Please inform this error to this site's administrator.";
       exit;
     }
   }
