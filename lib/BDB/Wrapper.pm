@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.42';
+our $VERSION = '0.45';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -598,15 +598,15 @@ our @EXPORT = qw(
   Wrapper module for BerkeleyDB.pm for easy usage of it.
   This will make it easy to use BerkeleyDB.pm.
   You can protect bdb file from the concurrent access and you can use BerkeleyDB.pm with less difficulty.
-  This module is used on http://www.accessup.org/ and is developed based on the requirement.
+  This module is used on http://sakuhindb.com/ and is developed based on the requirement.
 
   Attention: If you use this module for the specified Berkeley DB file,
   please use this module for all access to the bdb.
   By it, you can control lock and strasaction of bdb files.
   BDB_HOMEs are created under /tmp/bdb_home in default option.
 
-  Japanese: http://www.accessup.org/pj/6_B4C9CDFDBFCDA4B5A4F3/13/list.html
-  English: http://en.accessup.org/pe/Administrator/19/list.html
+  Japanese: http://sakuhindb.com/pj/6_B4C9CDFDBFCDA4B5A4F3/13/list.html
+  English: http://en.sakuhindb.com/pe/Administrator/19/list.html
 
 =cut
 
@@ -1175,7 +1175,7 @@ sub create_read_dbh(){
   }
   
   my $dbh;
-  $SIG{ALRM} = sub { die "timeout"};
+  local $SIG{ALRM} = sub { die "timeout"};
   eval{
     alarm($self->{'wait'});
     if($hash){

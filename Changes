@@ -1,4 +1,11 @@
 Revision history for Perl extension BDB::Wrapper.
+0.45
+	- Bug fix for SIG{ALRM}
+0.44
+	- Just modifiction of document not related to functions
+
+0.43
+	- Skipped for bug
 
 0.42 Wed Jan 12 06:50:00
 	- Improved how to use wait limitation
