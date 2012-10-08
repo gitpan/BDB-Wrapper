@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.45';
+our $VERSION = '0.46';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -615,6 +615,7 @@ our @EXPORT = qw(
 =cut
 
 =pod
+
   #!/usr/bin/perl -w
   package test_bdb;
   use strict;

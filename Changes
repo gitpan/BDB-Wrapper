@@ -1,6 +1,10 @@
 Revision history for Perl extension BDB::Wrapper.
-0.45
+0.46 Mon Oct 08 12:50:00
+	- Modified document for pod
+
+0.45 Mon Oct 08 01:00:00
 	- Bug fix for SIG{ALRM}
+
 0.44
 	- Just modifiction of document not related to functions
 
