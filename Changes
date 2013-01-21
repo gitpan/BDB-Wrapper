@@ -1,4 +1,7 @@
 Revision history for Perl extension BDB::Wrapper.
+0.47 Sun Jan/20/2012 13:57
+	- Modification for transaction
+
 0.46 Mon Oct 08 12:50:00
 	- Modified document for pod
 

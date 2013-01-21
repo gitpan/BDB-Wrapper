@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.46';
+our $VERSION = '0.47';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -732,10 +732,10 @@ our @EXPORT = qw(
   undef is default value.
   
   If you set {'wait'=>wait_seconds}, you can specify the seconds in which dead lock will be removed.
-  11 is default value.
+  22 is default value.
   
   If you set {'transaction'=>transaction_root_dir}, all dbh object will be created in transaction mode unless you don\'t specify transaction root dir in each method.
-  11 is default value.
+  0 is default value.
 
 =cut
 
@@ -810,7 +810,7 @@ sub create_env(){
   my $op=shift;
   my $bdb=File::Spec->rel2abs($op->{'bdb'}) || return;
   my $no_lock=$op->{'no_lock'} || $self->{'no_lock'} || 0;
-  my $transaction=$undef;
+  my $transaction=undef;
   $self->{'error_log_file'}=$op->{'errore_log_file'};
   if(exists($op->{'transaction'})){
     $transaction=$op->{'transaction'};
@@ -1049,7 +1049,7 @@ sub create_write_dbh(){
         if($@ =~ /timeout/){
           $op->{'dont_try'}=1;
           $dont_try=1;
-          my $home_dir=$self->get_bdb_home({'bdb'=>$bdb});
+          my $home_dir=$self->get_bdb_home({'bdb'=>$bdb, 'transaction'=>$transaction});
           system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)! && -d $home_dir);
           if(ref($op) eq 'HASH'){
             $op->{'dont_try'}=1;
@@ -1308,6 +1308,17 @@ sub create_write_hash_ref(){
   else{
     $env=$self->create_env({'bdb'=>$bdb});
   }
+
+  my $transaction = undef;
+  if(exists($op->{'transaction'})){
+    $transaction = $op->{'transaction'};
+  }
+  else{
+    $transaction = $self->{'transaction'};
+  }
+  if($transaction && $transaction!~ m!^/.!){
+    croak("transaction parameter must be valid directory name.");
+  }
   
   my $bdb_dir=$bdb;
   $bdb_dir=~ s!/[^/]+$!!;
@@ -1339,7 +1350,7 @@ sub create_write_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$self->get_bdb_home({'bdb'=>$bdb});
+        my $home_dir=$self->get_bdb_home({'bdb'=>$bdb, 'transaction'=>$transaction});
         system('rm -rf '.$home_dir) if ($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
           return $self->create_write_hash_ref($bdb, $op);
@@ -1465,7 +1476,7 @@ sub create_read_hash_ref(){
       if($@ =~ /timeout/){
         $op->{'dont_try'}=1;
         $dont_try=1;
-        my $home_dir=$self->get_bdb_home($bdb);
+        my $home_dir=$self->get_bdb_home({'bdb'=>$bdb, 'transaction'=>$transaction});
         system('rm -rf '.$home_dir) if($home_dir=~ m!^(?:/tmp|/dev/shm)!);
         if(ref($op) eq 'HASH'){
           return $self->create_read_hash_ref($bdb, $op);
