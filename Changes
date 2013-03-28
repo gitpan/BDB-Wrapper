@@ -1,5 +1,12 @@
 Revision history for Perl extension BDB::Wrapper.
-0.47 Sun Jan/20/2012 13:57
+
+0.49 Sun Mar/28/2013
+     	 - added txn=>1 and transaction=>1 options to use /tmp/txn_data directory for transaction's home directory
+
+0.48 Tue Jan/22/2013 3:00
+	- Modification of the document for cds_lock
+
+0.47 Sun Jan/20/2013 13:57
 	- Modification for transaction
 
 0.46 Mon Oct 08 12:50:00

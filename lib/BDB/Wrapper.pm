@@ -9,7 +9,7 @@ use FileHandle;
 use Exporter;
 use AutoLoader qw(AUTOLOAD);
 
-our $VERSION = '0.47';
+our $VERSION = '0.49';
 our @ISA = qw(Exporter AutoLoader);
 our %EXPORT_TAGS = ( 'all' => [ qw() ] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -644,17 +644,20 @@ our @EXPORT = qw(
     if(my $dbh=$self->{'bdbw'}->create_write_dbh($self->{'bdb'})){
       ###############
       # This is not must job but it will help to avoid unexpected result caused by unexpected process killing
+      my $lock=$dbh->cds_lock();
       local $SIG{'INT'};
       local $SIG{'TERM'};
       local $SIG{'QUIT'};
-      $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$dbh->db_close();};
+      $SIG{'INT'}=$SIG{'TERM'}=$SIG{'QUIT'}=sub {$lock->cds_unlock();$dbh->db_close();};
       ###########
       if($dbh && $dbh->db_put('name', 'value')==0){
       }
       else{
+        $lock->cds_unlock();
         $dbh->db_close() if $dbh;
         die 'Failed to put to '.$self->{'bdb'};
       }
+      $lock->cds_unlock();
       $dbh->db_close() if $dbh;
     }
 
@@ -692,7 +695,7 @@ our @EXPORT = qw(
     my $self=shift;
     $self->{'bdbw'}=new BDB::Wrapper;
     # If you want to create bdb_home with transaction log under /home/txn_data/bdb_home/$BDBFILENAME/
-    my ($dbh, $env)=$self->{'bdbw'}->create_write_dbh({'bdb'=>'/tmp/bdb_write.bdb', 'transaction'=>'/home/txn_data'});
+    my ($dbh, $env)=$self->{'bdbw'}->create_write_dbh({'bdb'=>'/tmp/bdb_write.bdb', 'txn'=>1});
     my $txn = $env->txn_begin(undef, DB_TXN_NOWAIT);
   
     my $cnt=0;
@@ -747,6 +750,7 @@ sub new(){
   $self->{'no_lock'}=0;
   $self->{'Flags'}='';
   $self->{'wait'}= 22;
+  $self->{'default_txn_dir'}='/tmp/txn_data';
   while(my ($key, $value)=each %{$op_ref}){
     if($key eq 'ram'){
       if($value){
@@ -770,7 +774,16 @@ sub new(){
     elsif($key eq 'transaction'){
       $self->{'transaction'}=$value;
       if($self->{'transaction'} && $self->{'transaction'}!~ m!^/.!){
-        croak("transaction parameter must be valid directory name.");
+	  $self->{'transaction'} = $self->{'default_txn_dir'};
+      }
+      if($self->{'transaction'}){
+        $self->{'lock_root'}=$self->{'transaction'};
+      }
+    }
+    elsif($key eq 'txn'){
+      $self->{'transaction'}=$value;
+      if($self->{'transaction'} && $self->{'transaction'}!~ m!^/.!){
+	  $self->{'transaction'} = $self->{'default_txn_dir'};
       }
       if($self->{'transaction'}){
         $self->{'lock_root'}=$self->{'transaction'};
@@ -798,7 +811,7 @@ __END__
     'no_lock='>0(default) or 1,
     'cache'=>undef(default) or integer,
     'error_log_file'=>undef or $error_log_file,
-    'transaction'=> 0==undef or $transaction_root_dir
+    'transaction'=> 0==undef or 1 or $transaction_root_dir
     });
 
   no_lock and cache will overwrite the value specified in new but used only in this env
@@ -815,11 +828,14 @@ sub create_env(){
   if(exists($op->{'transaction'})){
     $transaction=$op->{'transaction'};
   }
+  elsif(exists($op->{'txn'})){
+    $transaction=$op->{'txn'};
+  }
   else{
     $transaction=$self->{'transaction'};
   }
   if($transaction && $transaction!~ m!^/.!){
-    croak("transaction parameter must be valid directory name.");
+    $transaction = $self->{'default_txn_dir'};
   }
   my $cache=$op->{'cache'} || $self->{'Cachesize'} || undef;
   my $env;
@@ -961,11 +977,14 @@ sub create_write_dbh(){
     if(exists($op->{'transaction'})){
       $transaction = $op->{'transaction'};
     }
+    elsif(exists($op->{'txn'})){
+      $transaction = $op->{'txn'};
+    }
     else{
       $transaction = $self->{'transaction'};
     }
     if($transaction && $transaction!~ m!^/.!){
-      croak("transaction parameter must be valid directory name.");
+      $transaction = $self->{'default_txn_dir'};
     }
     if($op->{'reverse'} || $op->{'reverse_num'}){
       $sort_code_ref=sub {$_[1] <=> $_[0]};
@@ -1098,7 +1117,7 @@ sub create_write_dbh(){
     'sort' or 'sort_num'=>0 or 1,
     'reverse_cmp'=>0 or 1,
     'reverse' or 'reverse_num'=>0 or 1,
-    'transaction'=> 0==undef or $transaction_root_dir
+    'transaction'=> 0==undef or 1 or $transaction_root_dir
     });
 
   In the default mode, BDB file will be created as Btree;
@@ -1115,6 +1134,7 @@ sub create_write_dbh(){
 
   If you set reverse_cmp 1, you can use sub {$_[1] cmp $_[0]} for sort_code_ref.
 
+  If you set transaction 1, you will user /tmp/txn_data for the storage of transaction.
 =cut
 
 sub create_read_dbh(){
@@ -1136,14 +1156,19 @@ sub create_read_dbh(){
   my $dont_try=0;
   my $sort_code_ref=undef;
   if(ref($op) eq 'HASH'){
-    if(exists($op->{'transaction'})){
-      $transaction=$op->{'transaction'};
-    }
-    else{
-      $transaction=$self->{'transaction'};
-    }
+      if(exists($op->{'transaction'})){
+	  $transaction=$op->{'transaction'};
+      }
+      elsif(exists($op->{'txn'})){
+	  $transaction=$op->{'txn'};
+      }
+      elsif($self->{'transaction'}){
+	  $transaction=$self->{'transaction'};
+      }
+      
     if($transaction && $transaction!~ m!^/.!){
-      croak("transaction parameter must be valid directory name.");
+       $transaction=$self->{'default_txn_dir'};
+ #  croak("transaction parameter must be valid directory name.");
     }
     
     $hash=$op->{'hash'} || 0;
@@ -1313,11 +1338,15 @@ sub create_write_hash_ref(){
   if(exists($op->{'transaction'})){
     $transaction = $op->{'transaction'};
   }
+  elsif(exists($op->{'txn'})){
+    $transaction = $op->{'txn'};
+  }
   else{
     $transaction = $self->{'transaction'};
   }
+
   if($transaction && $transaction!~ m!^/.!){
-    croak("transaction parameter must be valid directory name.");
+    $transaction = $self->{'default_txn_dir'};
   }
   
   my $bdb_dir=$bdb;
@@ -1558,6 +1587,9 @@ sub get_bdb_home(){
     if(exists($op->{'transaction'})){
       $transaction=$op->{'transaction'};
     }
+    elsif(exists($op->{'txn'})){
+      $transaction=$op->{'txn'};
+    }
     else{
       $transaction=$self->{'transaction'};
     }
@@ -1567,7 +1599,7 @@ sub get_bdb_home(){
     $transaction=$self->{'transaction'};
   }
   if($transaction && $transaction!~ m!^/.!){
-    croak("transaction parameter must be valid directory name.");
+    $transaction = $self->{'default_txn_dir'};
   }
   if($transaction){
     $lock_root=$transaction;
@@ -1603,11 +1635,16 @@ sub clear_bdb_home(){
     if(exists($op->{'transaction'})){
       $transaction=$op->{'transaction'};
     }
+    elsif(exists($op->{'txn'})){
+      $transaction=$op->{'txn'};
+    }
     else{
       $transaction=$self->{'transaction'};
     }
+
     if($transaction && $transaction!~ m!^/.!){
-      croak("transaction parameter must be valid directory name.");
+      $transaction = $self->{'default_txn_dir'};
+#      croak("transaction parameter must be valid directory name.");
     }
     if($transaction){
       $lock_root=$transaction;

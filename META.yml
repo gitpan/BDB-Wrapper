@@ -20,4 +20,4 @@ no_index:
 requires:
   BerkeleyDB: 0
   File::Spec: 0
-version: 0.47
+version: 0.49
